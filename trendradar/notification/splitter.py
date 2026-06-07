@@ -125,6 +125,7 @@ DEFAULT_BATCH_SIZES = {
     "dingtalk": 20000,
     "feishu": 29000,
     "ntfy": 3800,
+    "generic_webhook": 2000,
     "default": 4000,
 }
 
@@ -193,6 +194,8 @@ def split_content_into_batches(
             max_bytes = sizes.get("feishu", 29000)
         elif format_type == "ntfy":
             max_bytes = sizes.get("ntfy", 3800)
+        elif format_type == "generic_webhook":
+            max_bytes = sizes.get("generic_webhook", 2000)
         else:
             max_bytes = sizes.get("default", 4000)
 
@@ -335,7 +338,7 @@ def split_content_into_batches(
     stats_title = "热点词汇统计" if display_mode == "keyword" else "热点新闻统计"
     stats_header = ""
     if report_data["stats"]:
-        if format_type in ("wework", "bark"):
+        if format_type in ("wework", "bark", "generic_webhook"):
             stats_header = f"📊 **{stats_title}** (共 {total_hotlist_count} 条)\n\n"
         elif format_type == "telegram":
             stats_header = f"📊 {stats_title} (共 {total_hotlist_count} 条)\n\n"
@@ -420,7 +423,7 @@ def split_content_into_batches(
 
             # 构建词组标题
             word_header = ""
-            if format_type in ("wework", "bark"):
+            if format_type in ("wework", "bark", "generic_webhook"):
                 if count >= 10:
                     word_header = (
                         f"🔥 {sequence_display} **{word}** : **{count}** 条\n\n"
@@ -486,7 +489,7 @@ def split_content_into_batches(
             first_news_line = ""
             if stat["titles"]:
                 first_title_data = stat["titles"][0]
-                if format_type in ("wework", "bark"):
+                if format_type in ("wework", "bark", "generic_webhook"):
                     formatted_title = format_title_for_platform(
                         "wework", first_title_data, show_source=show_source, show_keyword=show_keyword
                     )
@@ -541,7 +544,7 @@ def split_content_into_batches(
             # 处理剩余新闻条目
             for j in range(start_index, len(stat["titles"])):
                 title_data = stat["titles"][j]
-                if format_type in ("wework", "bark"):
+                if format_type in ("wework", "bark", "generic_webhook"):
                     formatted_title = format_title_for_platform(
                         "wework", title_data, show_source=show_source, show_keyword=show_keyword
                     )
@@ -591,7 +594,7 @@ def split_content_into_batches(
             # 词组间分隔符
             if i < len(report_data["stats"]) - 1:
                 separator = ""
-                if format_type in ("wework", "bark"):
+                if format_type in ("wework", "bark", "generic_webhook"):
                     separator = f"\n\n\n\n"
                 elif format_type == "telegram":
                     separator = f"\n\n"
@@ -623,7 +626,7 @@ def split_content_into_batches(
         new_header = ""
         if add_separator and current_batch_has_content:
             # 需要添加分割线
-            if format_type in ("wework", "bark"):
+            if format_type in ("wework", "bark", "generic_webhook"):
                 new_header = f"\n\n\n\n🆕 **本次新增热点新闻** (共 {report_data['total_new_count']} 条)\n\n"
             elif format_type == "telegram":
                 new_header = (
@@ -639,7 +642,7 @@ def split_content_into_batches(
                 new_header = f"\n\n🆕 *本次新增热点新闻* (共 {report_data['total_new_count']} 条)\n\n"
         else:
             # 不需要分割线（第一个区域）
-            if format_type in ("wework", "bark"):
+            if format_type in ("wework", "bark", "generic_webhook"):
                 new_header = f"🆕 **本次新增热点新闻** (共 {report_data['total_new_count']} 条)\n\n"
             elif format_type == "telegram":
                 new_header = f"🆕 本次新增热点新闻 (共 {report_data['total_new_count']} 条)\n\n"
@@ -670,7 +673,7 @@ def split_content_into_batches(
         # 逐个处理新增新闻来源
         for source_data in report_data["new_titles"]:
             source_header = ""
-            if format_type in ("wework", "bark"):
+            if format_type in ("wework", "bark", "generic_webhook"):
                 source_header = f"**{source_data['source_name']}** ({len(source_data['titles'])} 条):\n\n"
             elif format_type == "telegram":
                 source_header = f"{source_data['source_name']} ({len(source_data['titles'])} 条):\n\n"
@@ -690,7 +693,7 @@ def split_content_into_batches(
                 title_data_copy = first_title_data.copy()
                 title_data_copy["is_new"] = False
 
-                if format_type in ("wework", "bark"):
+                if format_type in ("wework", "bark", "generic_webhook"):
                     formatted_title = format_title_for_platform(
                         "wework", title_data_copy, show_source=False
                     )
@@ -742,7 +745,7 @@ def split_content_into_batches(
                 title_data_copy = title_data.copy()
                 title_data_copy["is_new"] = False
 
-                if format_type == "wework":
+                if format_type in ("wework", "generic_webhook"):
                     formatted_title = format_title_for_platform(
                         "wework", title_data_copy, show_source=False
                     )
@@ -935,7 +938,7 @@ def split_content_into_batches(
 
     if report_data["failed_ids"]:
         failed_header = ""
-        if format_type == "wework":
+        if format_type in ("wework", "generic_webhook"):
             failed_header = f"\n\n\n\n⚠️ **数据获取失败的平台：**\n\n"
         elif format_type == "telegram":
             failed_header = f"\n\n⚠️ 数据获取失败的平台：\n\n"
@@ -1081,7 +1084,7 @@ def _process_rss_stats_section(
 
         # 构建关键词标题（与热榜格式一致）
         word_header = ""
-        if format_type in ("wework", "bark"):
+        if format_type in ("wework", "bark", "generic_webhook"):
             if count >= 10:
                 word_header = f"🔥 {sequence_display} **{word}** : **{count}** 条\n\n"
             elif count >= 5:
@@ -1128,7 +1131,7 @@ def _process_rss_stats_section(
         first_news_line = ""
         if stat["titles"]:
             first_title_data = stat["titles"][0]
-            if format_type in ("wework", "bark"):
+            if format_type in ("wework", "bark", "generic_webhook"):
                 formatted_title = format_title_for_platform("wework", first_title_data, show_source=True)
             elif format_type == "telegram":
                 formatted_title = format_title_for_platform("telegram", first_title_data, show_source=True)
@@ -1168,7 +1171,7 @@ def _process_rss_stats_section(
         # 处理剩余新闻条目
         for j in range(start_index, len(stat["titles"])):
             title_data = stat["titles"][j]
-            if format_type in ("wework", "bark"):
+            if format_type in ("wework", "bark", "generic_webhook"):
                 formatted_title = format_title_for_platform("wework", title_data, show_source=True)
             elif format_type == "telegram":
                 formatted_title = format_title_for_platform("telegram", title_data, show_source=True)
@@ -1203,7 +1206,7 @@ def _process_rss_stats_section(
         # 关键词间分隔符
         if i < len(rss_stats) - 1:
             separator = ""
-            if format_type in ("wework", "bark"):
+            if format_type in ("wework", "bark", "generic_webhook"):
                 separator = "\n\n\n\n"
             elif format_type == "telegram":
                 separator = "\n\n"
@@ -1277,7 +1280,7 @@ def _process_rss_new_titles_section(
     new_header = ""
     if add_separator and current_batch_has_content:
         # 需要添加分割线
-        if format_type in ("wework", "bark"):
+        if format_type in ("wework", "bark", "generic_webhook"):
             new_header = f"\n\n\n\n🆕 **RSS 本次新增** (共 {total_items} 条)\n\n"
         elif format_type == "telegram":
             new_header = f"\n\n🆕 RSS 本次新增 (共 {total_items} 条)\n\n"
@@ -1291,7 +1294,7 @@ def _process_rss_new_titles_section(
             new_header = f"\n\n🆕 *RSS 本次新增* (共 {total_items} 条)\n\n"
     else:
         # 不需要分割线（第一个区域）
-        if format_type in ("wework", "bark"):
+        if format_type in ("wework", "bark", "generic_webhook"):
             new_header = f"🆕 **RSS 本次新增** (共 {total_items} 条)\n\n"
         elif format_type == "telegram":
             new_header = f"🆕 RSS 本次新增 (共 {total_items} 条)\n\n"
@@ -1324,7 +1327,7 @@ def _process_rss_new_titles_section(
 
         # 构建来源标题（与热榜新增格式一致）
         source_header = ""
-        if format_type in ("wework", "bark"):
+        if format_type in ("wework", "bark", "generic_webhook"):
             source_header = f"**{source_name}** ({count} 条):\n\n"
         elif format_type == "telegram":
             source_header = f"{source_name} ({count} 条):\n\n"
@@ -1342,7 +1345,7 @@ def _process_rss_new_titles_section(
         if titles:
             first_title_data = titles[0].copy()
             first_title_data["is_new"] = False
-            if format_type in ("wework", "bark"):
+            if format_type in ("wework", "bark", "generic_webhook"):
                 formatted_title = format_title_for_platform("wework", first_title_data, show_source=False)
             elif format_type == "telegram":
                 formatted_title = format_title_for_platform("telegram", first_title_data, show_source=False)
@@ -1381,7 +1384,7 @@ def _process_rss_new_titles_section(
         for j in range(start_index, len(titles)):
             title_data = titles[j].copy()
             title_data["is_new"] = False
-            if format_type in ("wework", "bark"):
+            if format_type in ("wework", "bark", "generic_webhook"):
                 formatted_title = format_title_for_platform("wework", title_data, show_source=False)
             elif format_type == "telegram":
                 formatted_title = format_title_for_platform("telegram", title_data, show_source=False)
@@ -1576,7 +1579,7 @@ def _process_standalone_section(
 
         # 平台标题
         platform_header = ""
-        if format_type in ("wework", "bark"):
+        if format_type in ("wework", "bark", "generic_webhook"):
             platform_header = f"**{platform_name}** ({len(items)} 条):\n\n"
         elif format_type == "telegram":
             platform_header = f"{platform_name} ({len(items)} 条):\n\n"
@@ -1640,7 +1643,7 @@ def _process_standalone_section(
 
         # RSS 源标题
         feed_header = ""
-        if format_type in ("wework", "bark"):
+        if format_type in ("wework", "bark", "generic_webhook"):
             feed_header = f"**{feed_name}** ({len(items)} 条):\n\n"
         elif format_type == "telegram":
             feed_header = f"{feed_name} ({len(items)} 条):\n\n"

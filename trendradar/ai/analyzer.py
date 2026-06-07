@@ -128,7 +128,7 @@ class AIAnalyzer:
         if api_base:
             print(f"[AI] 接口: 存在自定义 API 端点")
 
-        timeout = self.ai_config.get("TIMEOUT", 120)
+        timeout = self.ai_config.get("TIMEOUT", 600)
         max_tokens = self.ai_config.get("MAX_TOKENS", 5000)
         print(f"[AI] 参数: timeout={timeout}, max_tokens={max_tokens}")
 

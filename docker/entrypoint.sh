@@ -31,15 +31,17 @@ case "${RUN_MODE:-cron}" in
         exit 1
     fi
 
-    # 立即执行一次（如果配置了）
-    if [ "${IMMEDIATE_RUN:-false}" = "true" ]; then
-        echo "▶️ 立即执行一次"
-        python -m trendradar
-    fi
+    # 立即执行一次
+    echo "▶️ 立即执行一次"
+    python -m trendradar
 
     # 启动 Web 服务器
-    echo "🌐 启动 Web 服务器..."
-    python manage.py start_webserver
+    if [ "${ENABLE_WEBSERVER:-true}" = "true" ]; then
+        echo "🌐 启动 Web 服务器..."
+        python manage.py start_webserver
+    else
+        echo "⏭️ 跳过启动 Web 服务器 (ENABLE_WEBSERVER=false)"
+    fi
 
     echo "⏰ 启动supercronic: $CRON_EXPR"
     echo "🎯 supercronic 将作为 PID 1 运行"

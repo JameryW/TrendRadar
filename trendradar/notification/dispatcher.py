@@ -79,18 +79,7 @@ class NotificationDispatcher:
         skip_rss: bool = False,
     ) -> tuple:
         """
-        翻译推送内容
-
-        Args:
-            report_data: 报告数据
-            rss_items: RSS 统计条目
-            rss_new_items: RSS 新增条目
-            standalone_data: 独立展示区数据
-            display_regions: 区域显示配置（不展示的区域跳过翻译）
-            skip_rss: 跳过 RSS 和独立展示区翻译（当数据已在上游翻译过时使用）
-
-        Returns:
-            tuple: (翻译后的 report_data, rss_items, rss_new_items, standalone_data)
+        已禁用内容翻译。直接返回原始内容。
         """
         if not self.translator or not self.translator.enabled:
             return report_data, rss_items, rss_new_items, standalone_data
@@ -766,7 +755,7 @@ class NotificationDispatcher:
                 proxy_url=proxy_url,
                 mode=mode,
                 account_label=account_label,
-                batch_size=self.config.get("MESSAGE_BATCH_SIZE", 4000),
+                batch_size=self.config.get("GENERIC_WEBHOOK_BATCH_SIZE", 2000),
                 batch_interval=self.config.get("BATCH_SEND_INTERVAL", 1.0),
                 split_content_func=self.split_content_func,
                 rss_items=rss_items,

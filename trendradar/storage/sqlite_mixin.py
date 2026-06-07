@@ -82,6 +82,9 @@ class SQLiteStorageMixin:
         """
         schema_path = self._get_schema_path(db_type)
 
+        if db_type == "rss":
+            self._migrate_rss_schema(conn)
+
         if schema_path.exists():
             with open(schema_path, "r", encoding="utf-8") as f:
                 schema_sql = f.read()
@@ -103,6 +106,13 @@ class SQLiteStorageMixin:
 
     def _migrate_rss_schema(self, conn: sqlite3.Connection) -> None:
         """迁移 rss_items 表结构（为已有数据库添加 guid 列）"""
+        cursor = conn.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type = 'table' AND name = 'rss_items'
+        """)
+        if cursor.fetchone() is None:
+            return
+
         cursor = conn.execute("PRAGMA table_info(rss_items)")
         columns = {row[1] for row in cursor.fetchall()}
         if "guid" not in columns:
