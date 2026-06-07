@@ -107,6 +107,7 @@ def _load_notification_config(config_data: Dict) -> Dict:
         "FEISHU_BATCH_SIZE": batch_size.get("feishu", 29000),
         "BARK_BATCH_SIZE": batch_size.get("bark", 3600),
         "SLACK_BATCH_SIZE": batch_size.get("slack", 4000),
+        "GENERIC_WEBHOOK_BATCH_SIZE": batch_size.get("generic_webhook", 2000),
         "BATCH_SEND_INTERVAL": advanced.get("batch_send_interval", 1.0),
         "FEISHU_MESSAGE_SEPARATOR": advanced.get("feishu_message_separator", "---"),
         "MAX_ACCOUNTS_PER_CHANNEL": _get_env_int("MAX_ACCOUNTS_PER_CHANNEL") or advanced.get("max_accounts_per_channel", 3),
@@ -272,7 +273,7 @@ def _load_ai_config(config_data: Dict) -> Dict:
         "API_BASE": _get_env_str("AI_API_BASE") or ai_config.get("api_base", ""),
 
         # 生成参数
-        "TIMEOUT": timeout_env if timeout_env is not None else ai_config.get("timeout", 120),
+        "TIMEOUT": timeout_env if timeout_env is not None else ai_config.get("timeout", 600),
         "TEMPERATURE": ai_config.get("temperature", 1.0),
         "MAX_TOKENS": ai_config.get("max_tokens", 5000),
 

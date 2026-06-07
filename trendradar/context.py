@@ -440,6 +440,7 @@ class AppContext:
             batch_sizes={
                 "dingtalk": self.config.get("DINGTALK_BATCH_SIZE", 20000),
                 "feishu": self.config.get("FEISHU_BATCH_SIZE", 29000),
+                "generic_webhook": self.config.get("GENERIC_WEBHOOK_BATCH_SIZE", 2000),
                 "default": self.config.get("MESSAGE_BATCH_SIZE", 4000),
             },
             feishu_separator=self.config.get("FEISHU_MESSAGE_SEPARATOR", "---"),

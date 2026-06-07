@@ -79,7 +79,7 @@ _CHANNEL_BATCH_SIZES_DEFAULT = {
     "ntfy": 3800,       # 严格 4KB 限制（ntfy 代码默认值）
     "bark": 4000,       # config.yaml: advanced.batch_size.bark
     "slack": 4000,      # config.yaml: advanced.batch_size.slack
-    "generic_webhook": 4000,
+    "generic_webhook": 2000,
 }
 
 # 显示最新消息在前的渠道，批次需反序发送
@@ -465,14 +465,15 @@ CHANNEL_FORMAT_GUIDES = {
     "generic_webhook": {
         "name": "通用 Webhook",
         "format": "Markdown（或自定义模板）",
-        "max_length": "约 4000 字节",
+        "max_length": "约 2000 字节",
         "supported": ["标准 Markdown 语法"],
         "unsupported": ["取决于接收端"],
         "prompt": (
             "通用 Webhook 格式化策略：\n"
             "1. 使用标准 Markdown 格式\n"
             "2. 避免使用特殊平台专有语法\n"
-            "3. 如配置了自定义模板，内容会填充到 {content} 占位符"
+            "3. 如配置了自定义模板，内容会填充到 {content} 占位符\n"
+            "4. 默认受 2KB 限制（适配 Discord 等平台）"
         ),
     },
 }

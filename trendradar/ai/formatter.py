@@ -50,17 +50,17 @@ def _format_list_content(text: str) -> str:
     result = re.sub(r'([。！？；，、])\s*([a-zA-Z0-9\u4e00-\u9fa5]+(方面|领域)[:：])', r'\1\n\2', result)
 
     # 6. 处理 【标签】 格式
-    # 6a. 标签前确保空行分隔（文本开头除外）
-    result = re.sub(r'(?<=\S)\n*(【[^】]+】)', r'\n\n\1', result)
+    # 6a. 标签前确保换行分隔（文本开头除外）
+    result = re.sub(r'(?<=\S)\n*(【[^】]+】)', r'\n\1', result)
     # 6b. 合并标签与被换行拆开的冒号：【tag】\n： → 【tag】：
     result = re.sub(r'(【[^】]+】)\n+([:：])', r'\1\2', result)
     # 6c. 标签后（含可选冒号），如果紧跟非空白非冒号内容则另起一行
     # 用 (?=[^\s:：]) 避免正则回溯将冒号误判为"内容"而拆开 【tag】：
     result = re.sub(r'(【[^】]+】[:：]?)[ \t]*(?=[^\s:：])', r'\1\n', result)
 
-    # 7. 在列表项之间增加视觉空行（排除版本号/小数）
-    # 排除 【标签】 行（以】结尾）和子标题行（以冒号结尾）之后的情况，避免标题与首项之间出现空行
-    result = re.sub(r'(?<![:：】])\n(\d+\.)(?!\d)', r'\n\n\1', result)
+    # 7. 在列表项之间确保换行（排除版本号/小数）
+    # 排除 【标签】 行（以】结尾）和子标题行（以冒号结尾）之后的情况
+    result = re.sub(r'(?<![:：】])\n(\d+\.)(?!\d)', r'\n\1', result)
 
     return result
 
@@ -79,39 +79,27 @@ def _format_standalone_summaries(summaries: dict) -> str:
 def render_ai_analysis_markdown(result: AIAnalysisResult) -> str:
     """渲染为通用 Markdown 格式（Telegram、企业微信、ntfy、Bark、Slack）"""
     if not result.success:
-        if result.skipped:
-            return f"ℹ️ {result.error}"
-        return f"⚠️ AI 分析失败: {result.error}"
+        return f"⚠️ 分析失败: {result.error}"
 
-    lines = ["**✨ AI 热点分析**", ""]
+    lines = ["✨ **AI 深度研判**", ""]
 
-    if result.core_trends:
-        lines.extend(["**核心热点态势**", _format_list_content(result.core_trends), ""])
+    def _add_section(title, content):
+        if content:
+            lines.extend([title, _format_list_content(content), ""])
 
-    if result.sentiment_controversy:
-        lines.extend(
-            ["**舆论风向争议**", _format_list_content(result.sentiment_controversy), ""]
-        )
-
-    if result.signals:
-        lines.extend(["**异动与弱信号**", _format_list_content(result.signals), ""])
-
-    if result.rss_insights:
-        lines.extend(
-            ["**RSS 深度洞察**", _format_list_content(result.rss_insights), ""]
-        )
-
-    if result.outlook_strategy:
-        lines.extend(
-            ["**研判策略建议**", _format_list_content(result.outlook_strategy), ""]
-        )
+    _add_section("🎯 核心态势", result.core_trends)
+    _add_section("💬 舆论争议", result.sentiment_controversy)
+    _add_section("📡 异动信号", result.signals)
+    _add_section("🧠 专业视角", result.rss_insights)
+    _add_section("💡 研判建议", result.outlook_strategy)
 
     if result.standalone_summaries:
         summaries_text = _format_standalone_summaries(result.standalone_summaries)
         if summaries_text:
-            lines.extend(["**独立源点速览**", summaries_text])
+            lines.extend(["🌐 **独立速览**", summaries_text])
 
     return "\n".join(lines)
+
 
 
 def render_ai_analysis_feishu(result: AIAnalysisResult) -> str:
@@ -121,33 +109,34 @@ def render_ai_analysis_feishu(result: AIAnalysisResult) -> str:
             return f"ℹ️ {result.error}"
         return f"⚠️ AI 分析失败: {result.error}"
 
-    lines = ["**✨ AI 热点分析**", ""]
+    lines = ["**✨ AI 深度洞察**", ""]
 
     if result.core_trends:
-        lines.extend(["**核心热点态势**", _format_list_content(result.core_trends), ""])
+        lines.extend(["🎯 **核心态势**", _format_list_content(result.core_trends)])
 
     if result.sentiment_controversy:
         lines.extend(
-            ["**舆论风向争议**", _format_list_content(result.sentiment_controversy), ""]
+            ["💬 **舆论争议**", _format_list_content(result.sentiment_controversy)]
         )
 
     if result.signals:
-        lines.extend(["**异动与弱信号**", _format_list_content(result.signals), ""])
+        lines.extend(["📡 **异动信号**", _format_list_content(result.signals)])
 
     if result.rss_insights:
         lines.extend(
-            ["**RSS 深度洞察**", _format_list_content(result.rss_insights), ""]
+            ["🧠 **专业视角**", _format_list_content(result.rss_insights)]
         )
 
     if result.outlook_strategy:
         lines.extend(
-            ["**研判策略建议**", _format_list_content(result.outlook_strategy), ""]
-        )
+            ["💡 **研判建议**", _format_list_content(result.outlook_strategy)])
 
     if result.standalone_summaries:
         summaries_text = _format_standalone_summaries(result.standalone_summaries)
         if summaries_text:
-            lines.extend(["**独立源点速览**", summaries_text])
+            lines.extend(["🌐 **速览**", summaries_text])
+
+
 
     return "\n".join(lines)
 
@@ -159,39 +148,39 @@ def render_ai_analysis_dingtalk(result: AIAnalysisResult) -> str:
             return f"ℹ️ {result.error}"
         return f"⚠️ AI 分析失败: {result.error}"
 
-    lines = ["### ✨ AI 热点分析", ""]
+    lines = ["### ✨ AI 深度洞察", ""]
 
     if result.core_trends:
         lines.extend(
-            ["#### 核心热点态势", _format_list_content(result.core_trends), ""]
+            ["#### 🎯 核心态势", _format_list_content(result.core_trends), ""]
         )
 
     if result.sentiment_controversy:
         lines.extend(
             [
-                "#### 舆论风向争议",
+                "#### 💬 舆论争议",
                 _format_list_content(result.sentiment_controversy),
                 "",
             ]
         )
 
     if result.signals:
-        lines.extend(["#### 异动与弱信号", _format_list_content(result.signals), ""])
+        lines.extend(["#### 📡 异动信号", _format_list_content(result.signals), ""])
 
     if result.rss_insights:
         lines.extend(
-            ["#### RSS 深度洞察", _format_list_content(result.rss_insights), ""]
+            ["#### 🧠 专业视角", _format_list_content(result.rss_insights), ""]
         )
 
     if result.outlook_strategy:
         lines.extend(
-            ["#### 研判策略建议", _format_list_content(result.outlook_strategy), ""]
+            ["#### 💡 研判建议", _format_list_content(result.outlook_strategy), ""]
         )
 
     if result.standalone_summaries:
         summaries_text = _format_standalone_summaries(result.standalone_summaries)
         if summaries_text:
-            lines.extend(["#### 独立源点速览", summaries_text])
+            lines.extend(["#### 🌐 速览", summaries_text])
 
     return "\n".join(lines)
 
@@ -203,29 +192,34 @@ def render_ai_analysis_plain(result: AIAnalysisResult) -> str:
             return result.error
         return f"AI 分析失败: {result.error}"
 
-    lines = ["【✨ AI 热点分析】", ""]
+    lines = ["✨ AI 深度研判", ""]
 
     if result.core_trends:
-        lines.extend(["[核心热点态势]", _format_list_content(result.core_trends), ""])
+        if result.core_trends:
+            lines.extend(["🎯 **核心态势**", _format_list_content(result.core_trends)])
 
-    if result.sentiment_controversy:
-        lines.extend(
-            ["[舆论风向争议]", _format_list_content(result.sentiment_controversy), ""]
-        )
+        if result.sentiment_controversy:
+            lines.extend(
+                ["💬 **舆论争议**", _format_list_content(result.sentiment_controversy)]
+            )
 
-    if result.signals:
-        lines.extend(["[异动与弱信号]", _format_list_content(result.signals), ""])
+        if result.signals:
+            lines.extend(["📡 **异动信号**", _format_list_content(result.signals)])
 
-    if result.rss_insights:
-        lines.extend(["[RSS 深度洞察]", _format_list_content(result.rss_insights), ""])
+        if result.rss_insights:
+            lines.extend(
+                ["🧠 **专业视角**", _format_list_content(result.rss_insights)]
+            )
 
-    if result.outlook_strategy:
-        lines.extend(["[研判策略建议]", _format_list_content(result.outlook_strategy), ""])
+        if result.outlook_strategy:
+            lines.extend(
+                ["💡 **研判建议**", _format_list_content(result.outlook_strategy)])
 
-    if result.standalone_summaries:
-        summaries_text = _format_standalone_summaries(result.standalone_summaries)
-        if summaries_text:
-            lines.extend(["[独立源点速览]", summaries_text])
+        if result.standalone_summaries:
+            summaries_text = _format_standalone_summaries(result.standalone_summaries)
+            if summaries_text:
+                lines.extend(["🌐 **速览**", summaries_text])
+
 
     return "\n".join(lines)
 

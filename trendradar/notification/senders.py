@@ -1213,7 +1213,7 @@ def send_to_generic_webhook(
     mode: str = "daily",
     account_label: str = "",
     *,
-    batch_size: int = 4000,
+    batch_size: int = 2000,
     batch_interval: float = 1.0,
     split_content_func: Optional[Callable] = None,
     rss_items: Optional[list] = None,
@@ -1259,11 +1259,11 @@ def send_to_generic_webhook(
     ai_stats = _extract_ai_stats(ai_analysis)
 
     # 获取分批内容
-    # 使用 'wework' 作为 format_type 以获取 markdown 格式的通用输出
+    # 使用 'generic_webhook' 作为 format_type 以获取 markdown 格式的通用输出
     # 预留一定空间给模板外壳
     template_overhead = 200
     batches = split_content_func(
-        report_data, "wework", update_info, max_bytes=batch_size - template_overhead, mode=mode,
+        report_data, "generic_webhook", update_info, max_bytes=batch_size - template_overhead, mode=mode,
         rss_items=rss_items,
         rss_new_items=rss_new_items,
         ai_content=ai_content,
@@ -1273,7 +1273,7 @@ def send_to_generic_webhook(
     )
 
     # 统一添加批次头部
-    batches = add_batch_headers(batches, "wework", batch_size)
+    batches = add_batch_headers(batches, "generic_webhook", batch_size)
 
     print(f"{log_prefix}消息分为 {len(batches)} 批次发送 [{report_type}]")
 

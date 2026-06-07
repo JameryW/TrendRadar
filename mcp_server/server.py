@@ -1202,7 +1202,7 @@ def run_server(
 
     # 根据传输模式运行服务器
     if transport == 'stdio':
-        mcp.run(transport='stdio')
+        mcp.run(transport='stdio', show_banner=False)
     elif transport == 'http':
         # HTTP 模式（生产推荐）
         mcp.run(
