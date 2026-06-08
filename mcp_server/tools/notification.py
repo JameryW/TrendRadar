@@ -36,6 +36,105 @@ from trendradar.notification.senders import SMTP_CONFIGS
 from ..utils.errors import MCPError, InvalidParameterError
 
 
+DISCORD_EMBED_DESCRIPTION_LIMIT = 4096
+DISCORD_EMBED_FIELD_VALUE_LIMIT = 1024
+
+
+def _is_discord_webhook(webhook_url: str) -> bool:
+    """判断通用 Webhook URL 是否为 Discord Webhook"""
+    try:
+        parsed = urlparse(webhook_url)
+    except Exception:
+        return False
+
+    hostname = (parsed.hostname or "").lower()
+    return (
+        hostname in {"discord.com", "discordapp.com"}
+        or hostname.endswith(".discord.com")
+        or hostname.endswith(".discordapp.com")
+    ) and "/webhooks/" in parsed.path
+
+
+def _is_discord_content_template(payload_template: str) -> bool:
+    """识别文档推荐的 Discord 简单 content 模板"""
+    if not payload_template:
+        return False
+    try:
+        payload = json.loads(payload_template)
+    except (TypeError, json.JSONDecodeError):
+        return False
+    return isinstance(payload, dict) and payload == {"content": "{content}"}
+
+
+def _build_discord_payload(title: str, message: str) -> Dict[str, Any]:
+    """构建 Discord 原生 Webhook payload（优化卡片格式：emoji 字段名、footer、timestamp）"""
+    summary_fields, body = _extract_discord_summary_fields(message)
+    description = body.strip()
+    if len(description) > DISCORD_EMBED_DESCRIPTION_LIMIT:
+        description = description[: DISCORD_EMBED_DESCRIPTION_LIMIT - 3].rstrip() + "..."
+
+    embed = {
+        "title": f"📡 {title[:250]}",
+        "description": description,
+        "color": 0x5865F2,
+        "footer": {"text": "TrendRadar 热点雷达"},
+        "timestamp": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+    }
+    if summary_fields:
+        embed["fields"] = summary_fields
+
+    return {
+        "username": "TrendRadar",
+        "avatar_url": "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/1f4e1.png",
+        "embeds": [embed],
+    }
+
+
+def _extract_discord_summary_fields(content: str) -> tuple:
+    """将顶部概览行提取为 Discord inline fields（带 emoji 字段名，改善卡片辨识度）"""
+    lines = (content or "").strip().splitlines()
+    fields = []
+    body_start = 0
+    expected = {"概览", "数据", "本轮"}
+    emoji_map = {"概览": "📋", "数据": "📊", "本轮": "🕐"}
+
+    for idx, line in enumerate(lines[:5]):
+        stripped = line.strip()
+        if not stripped:
+            body_start = idx + 1
+            continue
+        if stripped == "---":
+            body_start = idx + 1
+            continue
+
+        match = re.match(r"^\*\*(概览|数据|本轮)：\*\*(.*)$", stripped)
+        if not match:
+            match = re.match(r"^(概览|数据|本轮)：(.*)$", stripped)
+        if not match:
+            break
+
+        name, value = match.group(1), match.group(2).strip() or "\u200b"
+        if name not in expected:
+            break
+
+        if len(value) > DISCORD_EMBED_FIELD_VALUE_LIMIT:
+            value = value[: DISCORD_EMBED_FIELD_VALUE_LIMIT - 3].rstrip() + "..."
+        display_name = f"{emoji_map.get(name, '')} {name}"
+        fields.append({"name": display_name, "value": value, "inline": True})
+        body_start = idx + 1
+
+    while body_start < len(lines) and not lines[body_start].strip():
+        body_start += 1
+    if body_start < len(lines) and lines[body_start].strip() == "---":
+        body_start += 1
+    while body_start < len(lines) and not lines[body_start].strip():
+        body_start += 1
+
+    if len(fields) < 2:
+        return [], content or ""
+    return fields, "\n".join(lines[body_start:])
+
+
 # ==================== 渠道启用判断规则 ====================
 
 # 每个渠道需要哪些配置项都非空才算"已配置"
@@ -464,8 +563,8 @@ CHANNEL_FORMAT_GUIDES = {
     },
     "generic_webhook": {
         "name": "通用 Webhook",
-        "format": "Markdown（或自定义模板）",
-        "max_length": "约 2000 字节",
+        "format": "Markdown（或自定义模板；Discord URL 自动使用 Embed）",
+        "max_length": "通用约 2000 字节；Discord Embed 描述约 4096 字符",
         "supported": ["标准 Markdown 语法"],
         "unsupported": ["取决于接收端"],
         "prompt": (
@@ -473,7 +572,8 @@ CHANNEL_FORMAT_GUIDES = {
             "1. 使用标准 Markdown 格式\n"
             "2. 避免使用特殊平台专有语法\n"
             "3. 如配置了自定义模板，内容会填充到 {content} 占位符\n"
-            "4. 默认受 2KB 限制（适配 Discord 等平台）"
+            "4. Discord Webhook 会自动识别并使用 Embed，标题、空行和短小分段展示更稳定\n"
+            "5. 默认受 2KB 限制；Discord Embed 支持更长描述，但仍建议保持简洁"
         ),
     },
 }
@@ -936,7 +1036,13 @@ def _send_generic_webhook(
 ) -> Dict:
     """通用 Webhook 发送（Markdown 格式，支持自定义模板）"""
     try:
-        if payload_template:
+        use_discord_payload = _is_discord_webhook(webhook_url) and (
+            not payload_template or _is_discord_content_template(payload_template)
+        )
+
+        if use_discord_payload:
+            payload = _build_discord_payload(title, message)
+        elif payload_template:
             json_content = json.dumps(message)[1:-1]
             json_title = json.dumps(title)[1:-1]
             payload_str = payload_template.replace("{content}", json_content).replace("{title}", json_title)

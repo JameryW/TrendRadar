@@ -66,14 +66,16 @@ def _format_list_content(text: str) -> str:
 
 
 def _format_standalone_summaries(summaries: dict) -> str:
-    """格式化独立展示区概括为纯文本行，每个源名称单独一行"""
+    """格式化独立展示区概括为紧凑对齐清单"""
     if not summaries:
         return ""
     lines = []
     for source_name, summary in summaries.items():
         if summary:
-            lines.append(f"[{source_name}]:\n{summary}")
-    return "\n\n".join(lines)
+            source = re.sub(r"\s+", " ", str(source_name)).strip()
+            text = re.sub(r"\s+", " ", str(summary)).strip()
+            lines.append(f"▸ {source}｜{text}")
+    return "\n".join(lines)
 
 
 def render_ai_analysis_markdown(result: AIAnalysisResult) -> str:
@@ -88,6 +90,7 @@ def render_ai_analysis_markdown(result: AIAnalysisResult) -> str:
             lines.extend([title, _format_list_content(content), ""])
 
     _add_section("🎯 核心态势", result.core_trends)
+    _add_section("🌏 地域市场", result.market_regions)
     _add_section("💬 舆论争议", result.sentiment_controversy)
     _add_section("📡 异动信号", result.signals)
     _add_section("🧠 专业视角", result.rss_insights)
@@ -99,6 +102,34 @@ def render_ai_analysis_markdown(result: AIAnalysisResult) -> str:
             lines.extend(["🌐 **独立速览**", summaries_text])
 
     return "\n".join(lines)
+
+
+def render_ai_analysis_discord(result: AIAnalysisResult) -> str:
+    """渲染为 Discord Embed Markdown 格式（标题用 ## 二级标题与正文区分，带 emoji）"""
+    if not result.success:
+        if result.skipped:
+            return f"ℹ️ {result.error}"
+        return f"⚠️ AI 分析失败: {result.error}"
+
+    lines = ["## ✨ AI 深度研判", ""]
+
+    def _add_section(emoji, title, content):
+        if content:
+            lines.extend([f"**{emoji} {title}**", _format_list_content(content), ""])
+
+    _add_section("🎯", "核心态势", result.core_trends)
+    _add_section("🌏", "地域/市场", result.market_regions)
+    _add_section("💬", "舆论与分歧", result.sentiment_controversy)
+    _add_section("📡", "对比信号", result.signals)
+    _add_section("🧠", "热榜 vs RSS", result.rss_insights)
+    _add_section("💡", "研判建议", result.outlook_strategy)
+
+    if result.standalone_summaries:
+        summaries_text = _format_standalone_summaries(result.standalone_summaries)
+        if summaries_text:
+            lines.extend(["**🌐 独立速览**", summaries_text])
+
+    return "\n".join(lines).strip()
 
 
 
@@ -113,6 +144,11 @@ def render_ai_analysis_feishu(result: AIAnalysisResult) -> str:
 
     if result.core_trends:
         lines.extend(["🎯 **核心态势**", _format_list_content(result.core_trends)])
+
+    if result.market_regions:
+        lines.extend(
+            ["🌏 **地域市场**", _format_list_content(result.market_regions)]
+        )
 
     if result.sentiment_controversy:
         lines.extend(
@@ -155,6 +191,11 @@ def render_ai_analysis_dingtalk(result: AIAnalysisResult) -> str:
             ["#### 🎯 核心态势", _format_list_content(result.core_trends), ""]
         )
 
+    if result.market_regions:
+        lines.extend(
+            ["#### 🌏 地域市场", _format_list_content(result.market_regions), ""]
+        )
+
     if result.sentiment_controversy:
         lines.extend(
             [
@@ -195,30 +236,32 @@ def render_ai_analysis_plain(result: AIAnalysisResult) -> str:
     lines = ["✨ AI 深度研判", ""]
 
     if result.core_trends:
-        if result.core_trends:
-            lines.extend(["🎯 **核心态势**", _format_list_content(result.core_trends)])
+        lines.extend(["🎯 **核心态势**", _format_list_content(result.core_trends)])
 
-        if result.sentiment_controversy:
-            lines.extend(
-                ["💬 **舆论争议**", _format_list_content(result.sentiment_controversy)]
-            )
+    if result.market_regions:
+        lines.extend(["🌏 **地域市场**", _format_list_content(result.market_regions)])
 
-        if result.signals:
-            lines.extend(["📡 **异动信号**", _format_list_content(result.signals)])
+    if result.sentiment_controversy:
+        lines.extend(
+            ["💬 **舆论争议**", _format_list_content(result.sentiment_controversy)]
+        )
 
-        if result.rss_insights:
-            lines.extend(
-                ["🧠 **专业视角**", _format_list_content(result.rss_insights)]
-            )
+    if result.signals:
+        lines.extend(["📡 **异动信号**", _format_list_content(result.signals)])
 
-        if result.outlook_strategy:
-            lines.extend(
-                ["💡 **研判建议**", _format_list_content(result.outlook_strategy)])
+    if result.rss_insights:
+        lines.extend(
+            ["🧠 **专业视角**", _format_list_content(result.rss_insights)]
+        )
 
-        if result.standalone_summaries:
-            summaries_text = _format_standalone_summaries(result.standalone_summaries)
-            if summaries_text:
-                lines.extend(["🌐 **速览**", summaries_text])
+    if result.outlook_strategy:
+        lines.extend(
+            ["💡 **研判建议**", _format_list_content(result.outlook_strategy)])
+
+    if result.standalone_summaries:
+        summaries_text = _format_standalone_summaries(result.standalone_summaries)
+        if summaries_text:
+            lines.extend(["🌐 **速览**", summaries_text])
 
 
     return "\n".join(lines)
@@ -240,6 +283,9 @@ def render_ai_analysis_telegram(result: AIAnalysisResult) -> str:
 
     if result.core_trends:
         lines.extend(["<b>核心热点态势</b>", _escape_html(_format_list_content(result.core_trends)), ""])
+
+    if result.market_regions:
+        lines.extend(["<b>地域与市场拆解</b>", _escape_html(_format_list_content(result.market_regions)), ""])
 
     if result.sentiment_controversy:
         lines.extend(["<b>舆论风向争议</b>", _escape_html(_format_list_content(result.sentiment_controversy)), ""])
@@ -272,6 +318,7 @@ def get_ai_analysis_renderer(channel: str):
         "ntfy": render_ai_analysis_markdown,
         "bark": render_ai_analysis_plain,
         "slack": render_ai_analysis_markdown,
+        "discord": render_ai_analysis_discord,
     }
     return renderers.get(channel, render_ai_analysis_markdown)
 
@@ -308,6 +355,15 @@ def render_ai_analysis_html_rich(result: AIAnalysisResult) -> str:
         ai_html += f"""
                     <div class="ai-block">
                         <div class="ai-block-title">核心热点态势</div>
+                        <div class="ai-block-content">{content_html}</div>
+                    </div>"""
+
+    if result.market_regions:
+        content = _format_list_content(result.market_regions)
+        content_html = _escape_html(content).replace("\n", "<br>")
+        ai_html += f"""
+                    <div class="ai-block">
+                        <div class="ai-block-title">地域与市场拆解</div>
                         <div class="ai-block-content">{content_html}</div>
                     </div>"""
 
