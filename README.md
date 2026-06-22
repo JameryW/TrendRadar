@@ -1872,13 +1872,16 @@ ai_translation:
       - 创建新 Webhook，复制 URL
 
    2. **配置模板**：
-      ```json
-      {"content": "{content}"}
-      ```
+      - 推荐留空：系统会自动识别 Discord Webhook，并使用 Discord Embed 格式推送
+      - 旧版 `content` 模板仍兼容，也会自动适配为 Discord Embed：
+        ```json
+        {"content": "{content}"}
+        ```
+      - 如需完全自定义 payload，可配置非默认 JSON 模板
 
    3. **GitHub Secret 配置**：
       - `GENERIC_WEBHOOK_URL`：Discord Webhook URL
-      - `GENERIC_WEBHOOK_TEMPLATE`：`{"content": "{content}"}`
+      - `GENERIC_WEBHOOK_TEMPLATE`：可留空；留空或使用 `{"content": "{content}"}` 都会自动适配 Discord Embed
 
    ### 自定义模板
 
@@ -1901,7 +1904,8 @@ ai_translation:
    ---
 
    **注意事项：**
-   - ✅ 支持 Markdown 格式（与企业微信格式一致）
+   - ✅ Discord Webhook 会自动使用 Embed 格式，AI 分析区更清晰
+   - ✅ 支持 Markdown 格式（Discord 自动适配，其他通用 Webhook 与企业微信格式一致）
    - ✅ 支持自动分批推送
    - ✅ 支持多账号配置（用 `;` 分隔）
    - ⚠️ 模板必须是有效的 JSON 格式
