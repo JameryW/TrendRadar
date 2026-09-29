@@ -23,17 +23,6 @@ def _get_env_bool(key: str) -> Optional[bool]:
     return value in ("true", "1")
 
 
-def _get_env_int(key: str, default: int = 0) -> int:
-    """从环境变量获取整数值"""
-    value = os.environ.get(key, "").strip()
-    if not value:
-        return default
-    try:
-        return int(value)
-    except ValueError:
-        return default
-
-
 def _get_env_int_or_none(key: str) -> Optional[int]:
     """从环境变量获取整数值，未设置时返回 None"""
     value = os.environ.get(key, "").strip()
@@ -83,14 +72,14 @@ def _load_report_config(config_data: Dict) -> Dict:
 
     # 环境变量覆盖
     sort_by_position_env = _get_env_bool("SORT_BY_POSITION_FIRST")
-    max_news_env = _get_env_int("MAX_NEWS_PER_KEYWORD")
+    max_news_env = _get_env_int_or_none("MAX_NEWS_PER_KEYWORD")
 
     return {
         "REPORT_MODE": report_config.get("mode", "daily"),
         "DISPLAY_MODE": report_config.get("display_mode", "keyword"),
         "RANK_THRESHOLD": report_config.get("rank_threshold", 10),
         "SORT_BY_POSITION_FIRST": sort_by_position_env if sort_by_position_env is not None else report_config.get("sort_by_position_first", False),
-        "MAX_NEWS_PER_KEYWORD": max_news_env or report_config.get("max_news_per_keyword", 0),
+        "MAX_NEWS_PER_KEYWORD": max_news_env if max_news_env is not None else report_config.get("max_news_per_keyword", 0),
     }
 
 
@@ -100,17 +89,19 @@ def _load_notification_config(config_data: Dict) -> Dict:
     advanced = config_data.get("advanced", {})
     batch_size = advanced.get("batch_size", {})
 
+    max_accounts_env = _get_env_int_or_none("MAX_ACCOUNTS_PER_CHANNEL")
+
     return {
         "ENABLE_NOTIFICATION": notification.get("enabled", True),
         "MESSAGE_BATCH_SIZE": batch_size.get("default", 4000),
+        "DISCORD_BATCH_SIZE": batch_size.get("discord", 1900),
         "DINGTALK_BATCH_SIZE": batch_size.get("dingtalk", 20000),
         "FEISHU_BATCH_SIZE": batch_size.get("feishu", 29000),
         "BARK_BATCH_SIZE": batch_size.get("bark", 3600),
         "SLACK_BATCH_SIZE": batch_size.get("slack", 4000),
-        "GENERIC_WEBHOOK_BATCH_SIZE": batch_size.get("generic_webhook", 2000),
         "BATCH_SEND_INTERVAL": advanced.get("batch_send_interval", 1.0),
         "FEISHU_MESSAGE_SEPARATOR": advanced.get("feishu_message_separator", "---"),
-        "MAX_ACCOUNTS_PER_CHANNEL": _get_env_int("MAX_ACCOUNTS_PER_CHANNEL") or advanced.get("max_accounts_per_channel", 3),
+        "MAX_ACCOUNTS_PER_CHANNEL": max_accounts_env if max_accounts_env is not None else advanced.get("max_accounts_per_channel", 3),
     }
 
 
@@ -266,14 +257,36 @@ def _load_ai_config(config_data: Dict) -> Dict:
 
     timeout_env = _get_env_int_or_none("AI_TIMEOUT")
 
+    env_auth_token = _get_env_str("AI_AUTH_TOKEN")
+    env_api_key = _get_env_str("AI_API_KEY")
+    config_auth_token = ai_config.get("auth_token", "")
+    config_api_key = ai_config.get("api_key", "")
+
+    # Select one credential mode at the configuration boundary. An explicitly
+    # configured native key must not be overridden by an ambient
+    # ANTHROPIC_AUTH_TOKEN inherited from the runner, while AI_AUTH_TOKEN is
+    # the explicit opt-in to Bearer-compatible gateways such as SCNet.
+    if env_auth_token:
+        api_key, auth_token = "", env_auth_token
+    elif env_api_key:
+        api_key, auth_token = env_api_key, ""
+    elif config_auth_token:
+        api_key, auth_token = "", config_auth_token
+    elif config_api_key:
+        api_key, auth_token = config_api_key, ""
+    else:
+        api_key = ""
+        auth_token = _get_env_str("ANTHROPIC_AUTH_TOKEN")
+
     return {
         # LiteLLM 核心配置
         "MODEL": _get_env_str("AI_MODEL") or ai_config.get("model", ""),
-        "API_KEY": _get_env_str("AI_API_KEY") or ai_config.get("api_key", ""),
+        "API_KEY": api_key,
+        "AUTH_TOKEN": auth_token,
         "API_BASE": _get_env_str("AI_API_BASE") or ai_config.get("api_base", ""),
 
         # 生成参数
-        "TIMEOUT": timeout_env if timeout_env is not None else ai_config.get("timeout", 600),
+        "TIMEOUT": timeout_env if timeout_env is not None else ai_config.get("timeout", 120),
         "TEMPERATURE": ai_config.get("temperature", 1.0),
         "MAX_TOKENS": ai_config.get("max_tokens", 5000),
 
@@ -372,6 +385,9 @@ def _load_storage_config(config_data: Dict) -> Dict:
     txt_enabled_env = _get_env_bool("STORAGE_TXT_ENABLED")
     html_enabled_env = _get_env_bool("STORAGE_HTML_ENABLED")
     pull_enabled_env = _get_env_bool("PULL_ENABLED")
+    local_retention_env = _get_env_int_or_none("LOCAL_RETENTION_DAYS")
+    remote_retention_env = _get_env_int_or_none("REMOTE_RETENTION_DAYS")
+    pull_days_env = _get_env_int_or_none("PULL_DAYS")
 
     return {
         "BACKEND": _get_env_str("STORAGE_BACKEND") or storage.get("backend", "auto"),
@@ -382,7 +398,7 @@ def _load_storage_config(config_data: Dict) -> Dict:
         },
         "LOCAL": {
             "DATA_DIR": local.get("data_dir", "output"),
-            "RETENTION_DAYS": _get_env_int("LOCAL_RETENTION_DAYS") or local.get("retention_days", 0),
+            "RETENTION_DAYS": local_retention_env if local_retention_env is not None else local.get("retention_days", 0),
         },
         "REMOTE": {
             "ENDPOINT_URL": _get_env_str("S3_ENDPOINT_URL") or remote.get("endpoint_url", ""),
@@ -390,11 +406,11 @@ def _load_storage_config(config_data: Dict) -> Dict:
             "ACCESS_KEY_ID": _get_env_str("S3_ACCESS_KEY_ID") or remote.get("access_key_id", ""),
             "SECRET_ACCESS_KEY": _get_env_str("S3_SECRET_ACCESS_KEY") or remote.get("secret_access_key", ""),
             "REGION": _get_env_str("S3_REGION") or remote.get("region", ""),
-            "RETENTION_DAYS": _get_env_int("REMOTE_RETENTION_DAYS") or remote.get("retention_days", 0),
+            "RETENTION_DAYS": remote_retention_env if remote_retention_env is not None else remote.get("retention_days", 0),
         },
         "PULL": {
             "ENABLED": pull_enabled_env if pull_enabled_env is not None else pull.get("enabled", False),
-            "DAYS": _get_env_int("PULL_DAYS") or pull.get("days", 7),
+            "DAYS": pull_days_env if pull_days_env is not None else pull.get("days", 7),
         },
     }
 
@@ -413,6 +429,7 @@ def _load_webhook_config(config_data: Dict) -> Dict:
     ntfy = channels.get("ntfy", {})
     bark = channels.get("bark", {})
     slack = channels.get("slack", {})
+    discord = channels.get("discord", {})
     generic = channels.get("generic_webhook", {})
 
     return {
@@ -440,6 +457,8 @@ def _load_webhook_config(config_data: Dict) -> Dict:
         "BARK_URL": _get_env_str("BARK_URL") or bark.get("url", ""),
         # Slack
         "SLACK_WEBHOOK_URL": _get_env_str("SLACK_WEBHOOK_URL") or slack.get("webhook_url", ""),
+        # Discord
+        "DISCORD_WEBHOOK_URL": _get_env_str("DISCORD_WEBHOOK_URL") or discord.get("webhook_url", ""),
         # 通用 Webhook
         "GENERIC_WEBHOOK_URL": _get_env_str("GENERIC_WEBHOOK_URL") or generic.get("webhook_url", ""),
         "GENERIC_WEBHOOK_TEMPLATE": _get_env_str("GENERIC_WEBHOOK_TEMPLATE") or generic.get("payload_template", ""),
@@ -514,6 +533,12 @@ def _print_notification_sources(config: Dict) -> None:
         count = min(len(accounts), max_accounts)
         slack_source = "环境变量" if os.environ.get("SLACK_WEBHOOK_URL") else "配置文件"
         notification_sources.append(f"Slack({slack_source}, {count}个账号)")
+
+    if config.get("DISCORD_WEBHOOK_URL"):
+        accounts = parse_multi_account_config(config["DISCORD_WEBHOOK_URL"])
+        count = min(len(accounts), max_accounts)
+        discord_source = "环境变量" if os.environ.get("DISCORD_WEBHOOK_URL") else "配置文件"
+        notification_sources.append(f"Discord({discord_source}, {count}个账号)")
 
     if config.get("GENERIC_WEBHOOK_URL"):
         accounts = parse_multi_account_config(config["GENERIC_WEBHOOK_URL"])

@@ -25,114 +25,16 @@ import yaml
 
 from trendradar.core.loader import _load_webhook_config, _load_notification_config
 from trendradar.notification.batch import (
+    DISCORD_SAFE_BATCH_BYTES,
     truncate_to_bytes,
-    get_batch_header,
     get_max_batch_header_size,
     add_batch_headers,
+    is_discord_webhook_url,
 )
 from trendradar.notification.formatters import strip_markdown
 from trendradar.notification.senders import SMTP_CONFIGS
 
 from ..utils.errors import MCPError, InvalidParameterError
-
-
-DISCORD_EMBED_DESCRIPTION_LIMIT = 4096
-DISCORD_EMBED_FIELD_VALUE_LIMIT = 1024
-
-
-def _is_discord_webhook(webhook_url: str) -> bool:
-    """判断通用 Webhook URL 是否为 Discord Webhook"""
-    try:
-        parsed = urlparse(webhook_url)
-    except Exception:
-        return False
-
-    hostname = (parsed.hostname or "").lower()
-    return (
-        hostname in {"discord.com", "discordapp.com"}
-        or hostname.endswith(".discord.com")
-        or hostname.endswith(".discordapp.com")
-    ) and "/webhooks/" in parsed.path
-
-
-def _is_discord_content_template(payload_template: str) -> bool:
-    """识别文档推荐的 Discord 简单 content 模板"""
-    if not payload_template:
-        return False
-    try:
-        payload = json.loads(payload_template)
-    except (TypeError, json.JSONDecodeError):
-        return False
-    return isinstance(payload, dict) and payload == {"content": "{content}"}
-
-
-def _build_discord_payload(title: str, message: str) -> Dict[str, Any]:
-    """构建 Discord 原生 Webhook payload（优化卡片格式：emoji 字段名、footer、timestamp）"""
-    summary_fields, body = _extract_discord_summary_fields(message)
-    description = body.strip()
-    if len(description) > DISCORD_EMBED_DESCRIPTION_LIMIT:
-        description = description[: DISCORD_EMBED_DESCRIPTION_LIMIT - 3].rstrip() + "..."
-
-    embed = {
-        "title": f"📡 {title[:250]}",
-        "description": description,
-        "color": 0x5865F2,
-        "footer": {"text": "TrendRadar 热点雷达"},
-        "timestamp": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.000Z"),
-    }
-    if summary_fields:
-        embed["fields"] = summary_fields
-
-    return {
-        "username": "TrendRadar",
-        "avatar_url": "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/1f4e1.png",
-        "embeds": [embed],
-    }
-
-
-def _extract_discord_summary_fields(content: str) -> tuple:
-    """将顶部概览行提取为 Discord inline fields（带 emoji 字段名，改善卡片辨识度）"""
-    lines = (content or "").strip().splitlines()
-    fields = []
-    body_start = 0
-    expected = {"概览", "数据", "本轮"}
-    emoji_map = {"概览": "📋", "数据": "📊", "本轮": "🕐"}
-
-    for idx, line in enumerate(lines[:5]):
-        stripped = line.strip()
-        if not stripped:
-            body_start = idx + 1
-            continue
-        if stripped == "---":
-            body_start = idx + 1
-            continue
-
-        match = re.match(r"^\*\*(概览|数据|本轮)：\*\*(.*)$", stripped)
-        if not match:
-            match = re.match(r"^(概览|数据|本轮)：(.*)$", stripped)
-        if not match:
-            break
-
-        name, value = match.group(1), match.group(2).strip() or "\u200b"
-        if name not in expected:
-            break
-
-        if len(value) > DISCORD_EMBED_FIELD_VALUE_LIMIT:
-            value = value[: DISCORD_EMBED_FIELD_VALUE_LIMIT - 3].rstrip() + "..."
-        display_name = f"{emoji_map.get(name, '')} {name}"
-        fields.append({"name": display_name, "value": value, "inline": True})
-        body_start = idx + 1
-
-    while body_start < len(lines) and not lines[body_start].strip():
-        body_start += 1
-    if body_start < len(lines) and lines[body_start].strip() == "---":
-        body_start += 1
-    while body_start < len(lines) and not lines[body_start].strip():
-        body_start += 1
-
-    if len(fields) < 2:
-        return [], content or ""
-    return fields, "\n".join(lines[body_start:])
 
 
 # ==================== 渠道启用判断规则 ====================
@@ -148,6 +50,7 @@ _CHANNEL_REQUIREMENTS = {
     "ntfy": ["NTFY_TOPIC"],
     "bark": ["BARK_URL"],
     "slack": ["SLACK_WEBHOOK_URL"],
+    "discord": ["DISCORD_WEBHOOK_URL"],
     "generic_webhook": ["GENERIC_WEBHOOK_URL"],
 }
 
@@ -161,6 +64,7 @@ _CHANNEL_NAMES = {
     "ntfy": "ntfy",
     "bark": "Bark",
     "slack": "Slack",
+    "discord": "Discord",
     "generic_webhook": "通用 Webhook",
 }
 
@@ -178,7 +82,8 @@ _CHANNEL_BATCH_SIZES_DEFAULT = {
     "ntfy": 3800,       # 严格 4KB 限制（ntfy 代码默认值）
     "bark": 4000,       # config.yaml: advanced.batch_size.bark
     "slack": 4000,      # config.yaml: advanced.batch_size.slack
-    "generic_webhook": 2000,
+    "discord": DISCORD_SAFE_BATCH_BYTES,
+    "generic_webhook": 4000,
 }
 
 # 显示最新消息在前的渠道，批次需反序发送
@@ -561,19 +466,31 @@ CHANNEL_FORMAT_GUIDES = {
             "8. 用空行和粗体组织信息层级"
         ),
     },
+    "discord": {
+        "name": "Discord",
+        "format": "Webhook content（Markdown）",
+        "max_length": "不超过 2000 个字符（内部按 1900 字节安全分批）",
+        "supported": ["标准 Markdown 语法", "换行分隔段落"],
+        "unsupported": ["嵌入式标题/附件（需额外 Discord payload 配置）"],
+        "prompt": (
+            "Discord Webhook 格式化策略：\n"
+            "1. 使用标准 Markdown 格式\n"
+            "2. 内容保持精炼，单条不超过 2000 个字符\n"
+            "3. 用空行和粗体组织信息层级\n"
+            "4. 不要依赖独立 title 字段，Webhook 只发送 content"
+        ),
+    },
     "generic_webhook": {
         "name": "通用 Webhook",
-        "format": "Markdown（或自定义模板；Discord URL 自动使用 Embed）",
-        "max_length": "通用约 2000 字节；Discord Embed 描述约 4096 字符",
+        "format": "Markdown（或自定义模板）",
+        "max_length": "约 4000 字节",
         "supported": ["标准 Markdown 语法"],
         "unsupported": ["取决于接收端"],
         "prompt": (
             "通用 Webhook 格式化策略：\n"
             "1. 使用标准 Markdown 格式\n"
             "2. 避免使用特殊平台专有语法\n"
-            "3. 如配置了自定义模板，内容会填充到 {content} 占位符\n"
-            "4. Discord Webhook 会自动识别并使用 Embed，标题、空行和短小分段展示更稳定\n"
-            "5. 默认受 2KB 限制；Discord Embed 支持更长描述，但仍建议保持简洁"
+            "3. 如配置了自定义模板，内容会填充到 {content} 占位符"
         ),
     },
 }
@@ -876,6 +793,24 @@ def _send_wework(webhook_url: str, content: str, title: str, msg_type: str = "ma
         return {"success": False, "detail": str(e)}
 
 
+def _send_discord(webhook_url: str, content: str, title: str) -> Dict:
+    """Discord Webhook 发送（只提交 content，兼容 204 空响应）。"""
+    payload = {"content": content}
+    try:
+        resp = requests.post(webhook_url, json=payload, timeout=30)
+        if 200 <= resp.status_code < 300:
+            return {"success": True, "detail": ""}
+
+        try:
+            data = resp.json()
+        except ValueError:
+            data = {}
+        detail = data.get("message") or data.get("code") or f"status={resp.status_code}"
+        return {"success": False, "detail": str(detail)}
+    except Exception as e:
+        return {"success": False, "detail": str(e)}
+
+
 def _send_telegram(bot_token: str, chat_id: str, content: str, title: str) -> Dict:
     """Telegram 发送（接收已转换的 HTML）"""
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
@@ -1035,13 +970,12 @@ def _send_generic_webhook(
     webhook_url: str, message: str, title: str, payload_template: str = ""
 ) -> Dict:
     """通用 Webhook 发送（Markdown 格式，支持自定义模板）"""
+    is_discord = is_discord_webhook_url(webhook_url)
     try:
-        use_discord_payload = _is_discord_webhook(webhook_url) and (
-            not payload_template or _is_discord_content_template(payload_template)
-        )
-
-        if use_discord_payload:
-            payload = _build_discord_payload(title, message)
+        # Discord's execute-webhook payload uses content; do not let a
+        # legacy generic template add unsupported top-level fields.
+        if is_discord:
+            payload = {"content": message}
         elif payload_template:
             json_content = json.dumps(message)[1:-1]
             json_title = json.dumps(title)[1:-1]
@@ -1176,6 +1110,7 @@ class NotificationTools:
                 "NTFY_TOPIC": ("ntfy", "topic"),
                 "BARK_URL": ("bark", "url"),
                 "SLACK_WEBHOOK_URL": ("slack", "webhook_url"),
+                "DISCORD_WEBHOOK_URL": ("discord", "webhook_url"),
                 "GENERIC_WEBHOOK_URL": ("generic_webhook", "webhook_url"),
             }
 
@@ -1227,7 +1162,7 @@ class NotificationTools:
             message: markdown 格式的消息内容
             title: 消息标题
             channels: 指定发送的渠道列表，None 表示发送到所有已配置渠道
-                      可选值: feishu, dingtalk, wework, telegram, email, ntfy, bark, slack, generic_webhook
+                      可选值: feishu, dingtalk, wework, telegram, email, ntfy, bark, slack, discord, generic_webhook
 
         Returns:
             发送结果字典
@@ -1275,9 +1210,27 @@ class NotificationTools:
                     },
                 }
 
+            # The legacy generic channel may point at the same Discord webhook
+            # as the explicit Discord channel.  Dispatch the explicit channel
+            # once and mirror its result so callers retain one result per
+            # requested channel without sending the message twice.
+            duplicate_channels = {}
+            discord_url = str(config.get("DISCORD_WEBHOOK_URL") or "").strip()
+            generic_url = str(config.get("GENERIC_WEBHOOK_URL") or "").strip()
+            if (
+                "discord" in target_channels
+                and "generic_webhook" in target_channels
+                and discord_url
+                and discord_url == generic_url
+                and is_discord_webhook_url(discord_url)
+            ):
+                duplicate_channels["generic_webhook"] = "discord"
+
             # 逐渠道发送
             results = {}
             for ch_id in target_channels:
+                if ch_id in duplicate_channels:
+                    continue
                 required_keys = _CHANNEL_REQUIREMENTS[ch_id]
                 if not all(config.get(k) for k in required_keys):
                     results[ch_id] = {"success": False, "detail": "渠道未配置"}
@@ -1285,6 +1238,14 @@ class NotificationTools:
 
                 result = self._dispatch_to_channel(ch_id, config, message, title)
                 results[ch_id] = result
+
+            for duplicate, canonical in duplicate_channels.items():
+                canonical_result = results[canonical]
+                results[duplicate] = {
+                    "success": canonical_result["success"],
+                    "detail": "与 Discord webhook 相同，已去重",
+                    "deduplicated_to": canonical,
+                }
 
             success_count = sum(1 for r in results.values() if r["success"])
             total = len(results)
@@ -1332,7 +1293,16 @@ class NotificationTools:
             )
 
         # 统一分批管线：格式适配 → 字节分割 → 添加批次头部 → (可选)反序
-        batches = _prepare_batches(message, channel_id, batch_sizes)
+        batch_channel_id = channel_id
+        if channel_id == "generic_webhook":
+            generic_urls = [
+                url for url in config.get("GENERIC_WEBHOOK_URL", "").split(";") if url.strip()
+            ]
+            if any(is_discord_webhook_url(url) for url in generic_urls):
+                # Keep legacy GENERIC_WEBHOOK_URL Discord deployments within
+                # Discord's stricter content limit.
+                batch_channel_id = "discord"
+        batches = _prepare_batches(message, batch_channel_id, batch_sizes)
 
         # 按渠道路由发送
         if channel_id == "feishu":
@@ -1374,10 +1344,34 @@ class NotificationTools:
                 lambda url, content: _send_slack(url, content, title),
                 batch_interval,
             )
+        elif channel_id == "discord":
+            return self._send_batched_multi_account(
+                config["DISCORD_WEBHOOK_URL"], batches, channel_id,
+                lambda url, content: _send_discord(url, content, title),
+                batch_interval,
+            )
         elif channel_id == "generic_webhook":
+            generic_urls = [
+                url.strip()
+                for url in config.get("GENERIC_WEBHOOK_URL", "").split(";")
+                if url.strip()
+            ]
+            discord_urls = {
+                url.strip()
+                for url in config.get("DISCORD_WEBHOOK_URL", "").split(";")
+                if url.strip()
+            }
+            generic_urls = [url for url in generic_urls if url not in discord_urls]
+            if not generic_urls:
+                return {
+                    "success": True,
+                    "detail": "与 Discord Webhook 重复，已跳过",
+                    "batches": 0,
+                }
+
             template = config.get("GENERIC_WEBHOOK_TEMPLATE", "")
             return self._send_batched_multi_account(
-                config["GENERIC_WEBHOOK_URL"], batches, channel_id,
+                ";".join(generic_urls), batches, channel_id,
                 lambda url, content: _send_generic_webhook(url, content, title, template),
                 batch_interval,
             )

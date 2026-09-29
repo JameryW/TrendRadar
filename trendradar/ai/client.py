@@ -23,6 +23,7 @@ class AIClient:
             config: AI 配置字典
                 - MODEL: 模型标识（格式: provider/model_name）
                 - API_KEY: API 密钥
+                - AUTH_TOKEN: Bearer 鉴权令牌（与 API_KEY 互斥）
                 - API_BASE: API 基础 URL（可选）
                 - TEMPERATURE: 采样温度
                 - MAX_TOKENS: 最大生成 token 数
@@ -31,11 +32,25 @@ class AIClient:
                 - FALLBACK_MODELS: 备用模型列表（可选）
         """
         self.model = config.get("MODEL", "deepseek/deepseek-chat")
-        self.api_key = config.get("API_KEY") or os.environ.get("AI_API_KEY", "")
+        configured_api_key = config.get("API_KEY") or ""
+        configured_auth_token = config.get("AUTH_TOKEN") or ""
+        if configured_api_key or configured_auth_token:
+            # A caller-provided credential choice is authoritative.  In
+            # particular, an ambient ANTHROPIC_AUTH_TOKEN inherited by a
+            # self-hosted runner must not silently turn a native API-key
+            # request into Bearer authentication.
+            self.api_key = configured_api_key
+            self.auth_token = configured_auth_token
+        else:
+            self.api_key = os.environ.get("AI_API_KEY", "")
+            self.auth_token = (
+                os.environ.get("AI_AUTH_TOKEN", "")
+                or os.environ.get("ANTHROPIC_AUTH_TOKEN", "")
+            )
         self.api_base = config.get("API_BASE", "")
         self.temperature = config.get("TEMPERATURE", 1.0)
         self.max_tokens = config.get("MAX_TOKENS", 5000)
-        self.timeout = config.get("TIMEOUT", 600)
+        self.timeout = config.get("TIMEOUT", 120)
         self.num_retries = config.get("NUM_RETRIES", 2)
         self.fallback_models = config.get("FALLBACK_MODELS", [])
 
@@ -47,6 +62,11 @@ class AIClient:
         """
         调用 AI 模型进行对话
 
+        主模型失败时按 ``fallback_models`` 顺序降级重试。降级不是 LiteLLM
+        的能力（``litellm.completion()`` 没有 ``fallbacks`` 参数），因此在这里
+        显式实现：每个降级条目可以自带 model / api_base / 凭证，跨服务商时
+        必须各用各的 key。
+
         Args:
             messages: 消息列表，格式: [{"role": "system/user/assistant", "content": "..."}]
             **kwargs: 额外参数，会覆盖默认配置
@@ -55,44 +75,137 @@ class AIClient:
             str: AI 响应内容
 
         Raises:
-            Exception: API 调用失败时抛出异常
+            Exception: 主模型与全部降级模型都失败时抛出（错误信息含各次尝试）
         """
-        # 构建请求参数
-        params = {
-            "model": self.model,
+        attempts: List[str] = [self.model]
+        try:
+            response = completion(
+                **self._build_params(self.model, self.api_key, self.auth_token,
+                                     self.api_base, messages, kwargs)
+            )
+        except Exception as primary_error:
+            response = None
+            last_error = primary_error
+            for entry in self._normalized_fallbacks():
+                fallback_model = entry.get("model")
+                if not fallback_model or fallback_model in attempts:
+                    continue
+                attempts.append(fallback_model)
+                try:
+                    params = self._build_params(
+                        fallback_model,
+                        self._entry_api_key(entry),
+                        self._entry_auth_token(entry),
+                        entry.get("api_base") or self.api_base,
+                        messages,
+                        kwargs,
+                    )
+                    print(f"[AI] 主模型失败，降级到 {fallback_model} ...")
+                    response = completion(**params)
+                    break
+                except Exception as fallback_error:
+                    last_error = fallback_error
+                    print(f"[AI] 降级模型 {fallback_model} 也失败: "
+                          f"{self._short_error(fallback_error)}")
+            if response is None:
+                raise RuntimeError(
+                    "所有模型均调用失败（已尝试: {}）: {}".format(
+                        " -> ".join(attempts), self._short_error(last_error)
+                    )
+                ) from last_error
+
+        return self._extract_content(response)
+
+    # ------------------------------------------------------------------
+    # 请求构造与降级
+    # ------------------------------------------------------------------
+    def _build_params(
+        self,
+        model: str,
+        api_key: str,
+        auth_token: str,
+        api_base: str,
+        messages: List[Dict[str, str]],
+        kwargs: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """构建单次 ``litellm.completion()`` 调用参数"""
+        params: Dict[str, Any] = {
+            "model": model,
             "messages": messages,
             "temperature": kwargs.get("temperature", self.temperature),
             "timeout": kwargs.get("timeout", self.timeout),
             "num_retries": kwargs.get("num_retries", self.num_retries),
         }
 
-        # 添加 API Key
-        if self.api_key:
-            params["api_key"] = self.api_key
+        # Bearer-compatible gateways (for example SCNet's Anthropic endpoint)
+        # must not receive the token through LiteLLM's ``api_key`` argument:
+        # that selects Anthropic's native ``x-api-key`` header.  Explicit
+        # bearer credentials take precedence while native providers retain
+        # their existing API-key semantics.
+        if auth_token:
+            params["extra_headers"] = {
+                "Authorization": f"Bearer {auth_token}",
+            }
+        elif api_key:
+            params["api_key"] = api_key
 
-        # 添加 API Base（如果配置了）
-        if self.api_base:
-            params["api_base"] = self.api_base
+        if api_base:
+            params["api_base"] = api_base
 
-        # 添加 max_tokens（如果配置了且不为 0）
         max_tokens = kwargs.get("max_tokens", self.max_tokens)
         if max_tokens and max_tokens > 0:
             params["max_tokens"] = max_tokens
-
-        # 添加 fallback 模型（如果配置了）
-        if self.fallback_models:
-            params["fallbacks"] = self.fallback_models
 
         # 合并其他额外参数
         for key, value in kwargs.items():
             if key not in params:
                 params[key] = value
+        return params
 
-        # 调用 LiteLLM
-        response = completion(**params)
+    def _normalized_fallbacks(self) -> List[Dict[str, Any]]:
+        """归一化降级配置：字符串条目按“继承主模型凭证与端点”处理"""
+        entries: List[Dict[str, Any]] = []
+        for item in self.fallback_models or []:
+            if isinstance(item, str) and item:
+                entries.append({"model": item})
+            elif isinstance(item, dict) and item.get("model"):
+                entries.append(item)
+        return entries
 
-        # 提取响应内容
-        # 某些模型/提供商返回 list（内容块）而非 str，统一转为 str
+    def _entry_api_key(self, entry: Dict[str, Any]) -> str:
+        """降级条目的 API Key：条目显式值 > 条目指定的环境变量 > 主模型 key"""
+        if entry.get("api_key"):
+            return entry["api_key"]
+        env_name = entry.get("api_key_env")
+        if env_name:
+            return os.environ.get(env_name, "")
+        # 条目换了端点却没给凭证时不要沿用主模型 key（发到别家必然 401）
+        if entry.get("api_base") and entry.get("api_base") != self.api_base:
+            return ""
+        return self.api_key
+
+    def _entry_auth_token(self, entry: Dict[str, Any]) -> str:
+        """降级条目的 Bearer Token：优先于 API Key"""
+        if entry.get("auth_token"):
+            return entry["auth_token"]
+        env_name = entry.get("auth_token_env")
+        if env_name:
+            return os.environ.get(env_name, "")
+        if entry.get("api_key") or entry.get("api_key_env"):
+            return ""
+        if entry.get("api_base") and entry.get("api_base") != self.api_base:
+            return ""
+        return self.auth_token
+
+    @staticmethod
+    def _short_error(error: BaseException) -> str:
+        """截断错误信息，避免把整个响应回执塞进报告"""
+        text = f"{type(error).__name__}: {error}"
+        return text if len(text) <= 300 else text[:300] + "..."
+
+    @staticmethod
+    def _extract_content(response: Any) -> str:
+        """提取响应内容（部分提供商返回内容块列表）"""
         content = response.choices[0].message.content
         if isinstance(content, list):
             content = "\n".join(
@@ -111,8 +224,11 @@ class AIClient:
         if not self.model:
             return False, "未配置 AI 模型（model）"
 
-        if not self.api_key:
-            return False, "未配置 AI API Key，请在 config.yaml 或环境变量 AI_API_KEY 中设置"
+        if not self.auth_token and not self.api_key:
+            return False, (
+                "未配置 AI 凭证，请设置 AI_AUTH_TOKEN/ANTHROPIC_AUTH_TOKEN "
+                "或 AI_API_KEY"
+            )
 
         # 验证模型格式（应该包含 provider/model）
         if "/" not in self.model:

@@ -514,6 +514,7 @@ class DataService:
                 "ntfy": [webhook_config.get("NTFY_SERVER_URL"), webhook_config.get("NTFY_TOPIC")],
                 "bark": [webhook_config.get("BARK_URL")],
                 "slack": [webhook_config.get("SLACK_WEBHOOK_URL")],
+                "discord": [webhook_config.get("DISCORD_WEBHOOK_URL")],
                 "generic_webhook": [webhook_config.get("GENERIC_WEBHOOK_URL")],
             }
             for ch_id, required_values in channel_checks.items():

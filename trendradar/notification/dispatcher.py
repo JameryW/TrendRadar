@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 from trendradar.core.config import (
@@ -23,6 +24,7 @@ from trendradar.core.config import (
 
 from .senders import (
     send_to_bark,
+    send_to_discord,
     send_to_dingtalk,
     send_to_email,
     send_to_feishu,
@@ -77,9 +79,22 @@ class NotificationDispatcher:
         standalone_data: Optional[Dict] = None,
         display_regions: Optional[Dict] = None,
         skip_rss: bool = False,
+        skip_standalone: bool = False,
     ) -> tuple:
         """
-        已禁用内容翻译。直接返回原始内容。
+        翻译推送内容
+
+        Args:
+            report_data: 报告数据
+            rss_items: RSS 统计条目
+            rss_new_items: RSS 新增条目
+            standalone_data: 独立展示区数据
+            display_regions: 区域显示配置（不展示的区域跳过翻译）
+            skip_rss: 跳过普通 RSS 翻译（当 RSS 已在上游翻译过时使用）
+            skip_standalone: 跳过独立展示区翻译（当 standalone 已在上游翻译过时使用）
+
+        Returns:
+            tuple: (翻译后的 report_data, rss_items, rss_new_items, standalone_data)
         """
         if not self.translator or not self.translator.enabled:
             return report_data, rss_items, rss_new_items, standalone_data
@@ -127,60 +142,88 @@ class NotificationDispatcher:
                     titles_to_translate.append(title_data.get("title", ""))
                     title_locations.append(("rss_new_items", stat_idx, title_idx))
 
-        # 5. 独立展示区 - 热榜平台
-        if standalone_data and scope.get("STANDALONE", True) and display_regions.get("STANDALONE", False):
+        # 5. 独立展示区 - 热榜平台 + RSS 源
+        # 统一由 skip_standalone 控制；standalone RSS 是独立数据集，不应被 skip_rss 跳过
+        if not skip_standalone and standalone_data and scope.get("STANDALONE", True) and display_regions.get("STANDALONE", False):
             for plat_idx, platform in enumerate(standalone_data.get("platforms", [])):
                 for item_idx, item in enumerate(platform.get("items", [])):
                     titles_to_translate.append(item.get("title", ""))
                     title_locations.append(("standalone_platforms", plat_idx, item_idx))
 
-            # 6. 独立展示区 - RSS 源（跳过已翻译的）
-            if not skip_rss:
-                for feed_idx, feed in enumerate(standalone_data.get("rss_feeds", [])):
-                    for item_idx, item in enumerate(feed.get("items", [])):
-                        titles_to_translate.append(item.get("title", ""))
-                        title_locations.append(("standalone_rss", feed_idx, item_idx))
+            # 6. 独立展示区 - RSS 源
+            for feed_idx, feed in enumerate(standalone_data.get("rss_feeds", [])):
+                for item_idx, item in enumerate(feed.get("items", [])):
+                    titles_to_translate.append(item.get("title", ""))
+                    title_locations.append(("standalone_rss", feed_idx, item_idx))
 
         if not titles_to_translate:
             print("[翻译] 没有需要翻译的内容")
             return report_data, rss_items, rss_new_items, standalone_data
 
-        print(f"[翻译] 共 {len(titles_to_translate)} 条标题待翻译")
+        total_count = len(titles_to_translate)
+        trans_config = self.config.get("AI_TRANSLATION", {})
+        batch_size = trans_config.get("BATCH_SIZE", 100)
+        batch_interval = trans_config.get("BATCH_INTERVAL", 2)
+        num_batches = (total_count + batch_size - 1) // batch_size
 
-        # 批量翻译
-        result = self.translator.translate_batch(titles_to_translate)
+        if num_batches > 1:
+            print(f"[翻译] 共 {total_count} 条标题待翻译，分 {num_batches} 批（每批 {batch_size} 条，间隔 {batch_interval}s）")
+        else:
+            print(f"[翻译] 共 {total_count} 条标题待翻译")
+
+        # 分批翻译
+        from trendradar.ai.translator import BatchTranslationResult
+
+        merged_result = BatchTranslationResult(total_count=total_count)
+        batch_count = 0
+
+        for i in range(0, total_count, batch_size):
+            if batch_count > 0 and batch_interval > 0:
+                time.sleep(batch_interval)
+            batch_texts = titles_to_translate[i:i + batch_size]
+            batch_num = batch_count + 1
+            if num_batches > 1:
+                print(f"[翻译] 第 {batch_num}/{num_batches} 批（{len(batch_texts)} 条）...")
+            result = self.translator.translate_batch(batch_texts)
+            merged_result.results.extend(result.results)
+            merged_result.success_count += result.success_count
+            merged_result.fail_count += result.fail_count
+
+            # debug 模式：输出每批的详细信息
+            if self.config.get("DEBUG", False):
+                batch_label = f"[翻译][DEBUG][批次 {batch_num}]" if num_batches > 1 else "[翻译][DEBUG]"
+                if result.prompt:
+                    print(f"{batch_label} === 发送给 AI 的 Prompt ===")
+                    print(result.prompt)
+                    print(f"{batch_label} === Prompt 结束 ===")
+                if result.raw_response:
+                    print(f"{batch_label} === AI 原始响应 ===")
+                    print(result.raw_response)
+                    print(f"{batch_label} === 响应结束 ===")
+                expected = len(batch_texts)
+                if result.parsed_count != expected:
+                    print(f"{batch_label} ⚠️ 行数不匹配：期望 {expected} 条，AI 返回 {result.parsed_count} 条")
+                unchanged_count = 0
+                for j, res in enumerate(result.results):
+                    global_idx = i + j + 1
+                    if not res.success and res.error:
+                        print(f"{batch_label} [{global_idx}] !! 失败: {res.error}")
+                    elif res.original_text == res.translated_text:
+                        unchanged_count += 1
+                    else:
+                        print(f"{batch_label} [{global_idx}] {res.original_text} => {res.translated_text}")
+                if unchanged_count > 0:
+                    print(f"{batch_label} （另有 {unchanged_count} 条未变化，已省略）")
+
+            batch_count += 1
+
+        result = merged_result
 
         if result.success_count == 0:
             print(f"[翻译] 翻译失败: {result.results[0].error if result.results else '未知错误'}")
             return report_data, rss_items, rss_new_items, standalone_data
 
         print(f"[翻译] 翻译完成: {result.success_count}/{result.total_count} 成功")
-
-        # debug 模式：输出完整 prompt、AI 原始响应、逐条对照
-        if self.config.get("DEBUG", False):
-            if result.prompt:
-                print(f"[翻译][DEBUG] === 发送给 AI 的 Prompt ===")
-                print(result.prompt)
-                print(f"[翻译][DEBUG] === Prompt 结束 ===")
-            if result.raw_response:
-                print(f"[翻译][DEBUG] === AI 原始响应 ===")
-                print(result.raw_response)
-                print(f"[翻译][DEBUG] === 响应结束 ===")
-            # 行数不匹配警告
-            expected = len(titles_to_translate)
-            if result.parsed_count != expected:
-                print(f"[翻译][DEBUG] ⚠️ 行数不匹配：期望 {expected} 条，AI 返回 {result.parsed_count} 条")
-            # 逐条对照
-            unchanged_count = 0
-            for i, res in enumerate(result.results):
-                if not res.success and res.error:
-                    print(f"[翻译][DEBUG] [{i+1}] !! 失败: {res.error}")
-                elif res.original_text == res.translated_text:
-                    unchanged_count += 1
-                else:
-                    print(f"[翻译][DEBUG] [{i+1}] {res.original_text} => {res.translated_text}")
-            if unchanged_count > 0:
-                print(f"[翻译][DEBUG] （另有 {unchanged_count} 条未变化，已省略）")
 
         # 回填翻译结果（仅在翻译文本非空时替换，防止空翻译覆盖原始标题）
         for i, (loc_type, idx1, idx2) in enumerate(title_locations):
@@ -248,10 +291,10 @@ class NotificationDispatcher:
                 report_data, rss_items, rss_new_items, standalone_data, display_regions
             )
         else:
-            # RSS 已翻译，仅翻译热榜 report_data 和独立展示区热榜部分
+            # RSS 和独立展示区均已在上游翻译过，仅翻译热榜 report_data
             report_data, _, _, standalone_data = self.translate_content(
                 report_data, standalone_data=standalone_data, display_regions=display_regions,
-                skip_rss=True,
+                skip_rss=True, skip_standalone=True,
             )
 
         # 飞书
@@ -303,12 +346,25 @@ class NotificationDispatcher:
                 ai_analysis, display_regions, standalone_data
             )
 
-        # 通用 Webhook
-        if self.config.get("GENERIC_WEBHOOK_URL"):
-            results["generic_webhook"] = self._send_generic_webhook(
+        # Discord（优先使用专用配置）
+        if self.config.get("DISCORD_WEBHOOK_URL"):
+            results["discord"] = self._send_discord(
                 report_data, report_type, update_info, proxy_url, mode, rss_items, rss_new_items,
                 ai_analysis, display_regions, standalone_data
             )
+
+        # 通用 Webhook
+        if self.config.get("GENERIC_WEBHOOK_URL"):
+            discord_urls = set(parse_multi_account_config(self.config.get("DISCORD_WEBHOOK_URL", "")))
+            generic_urls = [
+                url for url in parse_multi_account_config(self.config["GENERIC_WEBHOOK_URL"])
+                if url not in discord_urls
+            ]
+            if generic_urls:
+                results["generic_webhook"] = self._send_generic_webhook(
+                    report_data, report_type, update_info, proxy_url, mode, rss_items, rss_new_items,
+                    ai_analysis, display_regions, standalone_data, webhook_urls=generic_urls
+                )
 
         # 邮件（保持原有逻辑，已支持多收件人，AI 分析已嵌入 HTML）
         if (
@@ -319,6 +375,46 @@ class NotificationDispatcher:
             results["email"] = self._send_email(report_type, html_file_path)
 
         return results
+
+    def _send_discord(
+        self,
+        report_data: Dict,
+        report_type: str,
+        update_info: Optional[Dict],
+        proxy_url: Optional[str],
+        mode: str,
+        rss_items: Optional[List[Dict]] = None,
+        rss_new_items: Optional[List[Dict]] = None,
+        ai_analysis: Optional[AIAnalysisResult] = None,
+        display_regions: Optional[Dict] = None,
+        standalone_data: Optional[Dict] = None,
+    ) -> bool:
+        """发送到 Discord（专用 Webhook，使用安全批次上限）。"""
+        rd, ri, rn, ai, sd = self._apply_display_regions(
+            report_data, display_regions, rss_items, rss_new_items, ai_analysis, standalone_data
+        )
+
+        return self._send_to_multi_accounts(
+            channel_name="Discord",
+            config_value=self.config["DISCORD_WEBHOOK_URL"],
+            send_func=lambda url, account_label: send_to_discord(
+                webhook_url=url,
+                report_data=rd,
+                report_type=report_type,
+                update_info=update_info,
+                proxy_url=proxy_url,
+                mode=mode,
+                account_label=account_label,
+                batch_size=self.config.get("DISCORD_BATCH_SIZE", 1900),
+                batch_interval=self.config.get("BATCH_SEND_INTERVAL", 1.0),
+                split_content_func=self.split_content_func,
+                rss_items=ri,
+                rss_new_items=rn,
+                ai_analysis=ai,
+                display_regions=display_regions or {},
+                standalone_data=sd,
+            ),
+        )
 
     def _send_to_multi_accounts(
         self,
@@ -717,6 +813,7 @@ class NotificationDispatcher:
         ai_analysis: Optional[AIAnalysisResult] = None,
         display_regions: Optional[Dict] = None,
         standalone_data: Optional[Dict] = None,
+        webhook_urls: Optional[List[str]] = None,
     ) -> bool:
         """发送到通用 Webhook（多账号，支持热榜+RSS合并+AI分析+独立展示区）"""
         report_data, rss_items, rss_new_items, ai_analysis, standalone_data = self._apply_display_regions(
@@ -724,7 +821,7 @@ class NotificationDispatcher:
         )
         display_regions = display_regions or {}
 
-        urls = parse_multi_account_config(self.config.get("GENERIC_WEBHOOK_URL", ""))
+        urls = webhook_urls or parse_multi_account_config(self.config.get("GENERIC_WEBHOOK_URL", ""))
         templates = parse_multi_account_config(self.config.get("GENERIC_WEBHOOK_TEMPLATE", ""))
 
         if not urls:
@@ -755,7 +852,7 @@ class NotificationDispatcher:
                 proxy_url=proxy_url,
                 mode=mode,
                 account_label=account_label,
-                batch_size=self.config.get("GENERIC_WEBHOOK_BATCH_SIZE", 2000),
+                batch_size=self.config.get("MESSAGE_BATCH_SIZE", 4000),
                 batch_interval=self.config.get("BATCH_SEND_INTERVAL", 1.0),
                 split_content_func=self.split_content_func,
                 rss_items=rss_items,
@@ -788,4 +885,3 @@ class NotificationDispatcher:
             custom_smtp_port=self.config.get("EMAIL_SMTP_PORT", ""),
             get_time_func=self.get_time_func,
         )
-

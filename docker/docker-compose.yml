@@ -1,31 +1,23 @@
+# This file intentionally deploys upstream images and does not include local
+# checkout changes. For a local source build, use docker-compose-build.yml or
+# the repository-root docker-compose.yml instead.
 services:
   trendradar:
     image: wantcat/trendradar:latest
     container_name: trendradar
     restart: unless-stopped
 
-    healthcheck:
-      test: ["CMD-SHELL", "pidof supercronic || pidof python"]
-      interval: 2m
-      timeout: 5s
-      retries: 3
-      start_period: 30s
-
-    # ports:
-    #   - "127.0.0.1:${WEBSERVER_PORT:-8080}:${WEBSERVER_PORT:-8080}"
+    ports:
+      - "127.0.0.1:${WEBSERVER_PORT:-8080}:${WEBSERVER_PORT:-8080}"
 
     volumes:
       - ../config:/app/config:ro
       - ../output:/app/output
-      - ../trendradar:/app/trendradar
-      - ../mcp_server:/app/mcp_server
-      - ./entrypoint.sh:/entrypoint.sh:ro
 
     environment:
       - TZ=Asia/Shanghai
       # Web 服务器
       - WEBSERVER_PORT=${WEBSERVER_PORT:-8080}
-      - ENABLE_WEBSERVER=${ENABLE_WEBSERVER:-true}
       # 通知渠道
       - FEISHU_WEBHOOK_URL=${FEISHU_WEBHOOK_URL:-}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
@@ -48,6 +40,7 @@ services:
       # Slack配置
       - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
       # 通用Webhook配置
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
       - GENERIC_WEBHOOK_URL=${GENERIC_WEBHOOK_URL:-}
       - GENERIC_WEBHOOK_TEMPLATE=${GENERIC_WEBHOOK_TEMPLATE:-}
       # AI 配置（ai_analysis 和 ai_translation 共享模型配置）
@@ -77,9 +70,6 @@ services:
     volumes:
       - ../config:/app/config:ro
       - ../output:/app/output
-      - ../trendradar:/app/trendradar
-      - ../mcp_server:/app/mcp_server
-      - ./entrypoint.sh:/entrypoint.sh:ro
 
     environment:
       - TZ=Asia/Shanghai

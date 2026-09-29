@@ -18,7 +18,6 @@
 import smtplib
 import time
 import json
-import re
 from datetime import datetime
 from email.header import Header
 from email.mime.multipart import MIMEMultipart
@@ -30,117 +29,13 @@ from urllib.parse import urlparse
 
 import requests
 
-from .batch import add_batch_headers, get_max_batch_header_size
+from .batch import (
+    DISCORD_SAFE_BATCH_BYTES,
+    add_batch_headers,
+    get_max_batch_header_size,
+    is_discord_webhook_url,
+)
 from .formatters import convert_markdown_to_mrkdwn, strip_markdown
-
-
-DISCORD_EMBED_BATCH_SIZE = 3900
-DISCORD_EMBED_DESCRIPTION_LIMIT = 4096
-DISCORD_EMBED_FIELD_VALUE_LIMIT = 1024
-
-
-def _is_discord_webhook(webhook_url: str) -> bool:
-    """判断通用 Webhook URL 是否为 Discord Webhook"""
-    try:
-        parsed = urlparse(webhook_url)
-    except Exception:
-        return False
-
-    hostname = (parsed.hostname or "").lower()
-    return (
-        hostname in {"discord.com", "discordapp.com"}
-        or hostname.endswith(".discord.com")
-        or hostname.endswith(".discordapp.com")
-    ) and "/webhooks/" in parsed.path
-
-
-def _is_discord_content_template(payload_template: Optional[str]) -> bool:
-    """识别文档推荐的 Discord 简单 content 模板"""
-    if not payload_template:
-        return False
-    try:
-        payload = json.loads(payload_template)
-    except (TypeError, json.JSONDecodeError):
-        return False
-    return isinstance(payload, dict) and payload == {"content": "{content}"}
-
-
-def _build_discord_payload(
-    report_type: str,
-    batch_content: str,
-    batch_index: int,
-    total_batches: int,
-) -> Dict[str, Any]:
-    """构建 Discord 原生 Webhook payload（优化卡片格式：emoji 字段名、footer、timestamp）"""
-    title = f"📡 TrendRadar - {report_type}"
-    if total_batches > 1:
-        title = f"{title} ({batch_index}/{total_batches})"
-
-    summary_fields, body = _extract_discord_summary_fields(batch_content)
-    description = body.strip()
-    if len(description) > DISCORD_EMBED_DESCRIPTION_LIMIT:
-        description = description[: DISCORD_EMBED_DESCRIPTION_LIMIT - 3].rstrip() + "..."
-
-    embed = {
-        "title": title[:256],
-        "description": description,
-        "color": 0x5865F2,
-        "footer": {"text": "TrendRadar 热点雷达"},
-        "timestamp": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.000Z"),
-    }
-    if summary_fields:
-        embed["fields"] = summary_fields
-
-    return {
-        "username": "TrendRadar",
-        "avatar_url": "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/1f4e1.png",
-        "embeds": [embed],
-    }
-
-
-def _extract_discord_summary_fields(content: str) -> tuple:
-    """将顶部概览行提取为 Discord inline fields（带 emoji 字段名，改善卡片辨识度）"""
-    lines = (content or "").strip().splitlines()
-    fields = []
-    body_start = 0
-    expected = {"概览", "数据", "本轮"}
-    emoji_map = {"概览": "📋", "数据": "📊", "本轮": "🕐"}
-
-    for idx, line in enumerate(lines[:5]):
-        stripped = line.strip()
-        if not stripped:
-            body_start = idx + 1
-            continue
-        if stripped == "---":
-            body_start = idx + 1
-            continue
-
-        match = re.match(r"^\*\*(概览|数据|本轮)：\*\*(.*)$", stripped)
-        if not match:
-            match = re.match(r"^(概览|数据|本轮)：(.*)$", stripped)
-        if not match:
-            break
-
-        name, value = match.group(1), match.group(2).strip() or "\u200b"
-        if name not in expected:
-            break
-
-        if len(value) > DISCORD_EMBED_FIELD_VALUE_LIMIT:
-            value = value[: DISCORD_EMBED_FIELD_VALUE_LIMIT - 3].rstrip() + "..."
-        display_name = f"{emoji_map.get(name, '')} {name}"
-        fields.append({"name": display_name, "value": value, "inline": True})
-        body_start = idx + 1
-
-    while body_start < len(lines) and not lines[body_start].strip():
-        body_start += 1
-    if body_start < len(lines) and lines[body_start].strip() == "---":
-        body_start += 1
-    while body_start < len(lines) and not lines[body_start].strip():
-        body_start += 1
-
-    if len(fields) < 2:
-        return [], content or ""
-    return fields, "\n".join(lines[body_start:])
 
 
 def _extract_ai_stats(ai_analysis) -> Optional[Dict]:
@@ -1021,7 +916,7 @@ def send_to_ntfy(
                 )
                 try:
                     print(f"错误详情：{response.text}")
-                except:
+                except Exception:
                     pass
 
         except requests.exceptions.ConnectTimeout:
@@ -1183,7 +1078,7 @@ def send_to_bark(
                 )
                 try:
                     print(f"错误详情：{response.text}")
-                except:
+                except Exception:
                     pass
 
         except requests.exceptions.ConnectTimeout:
@@ -1323,7 +1218,7 @@ def send_to_generic_webhook(
     mode: str = "daily",
     account_label: str = "",
     *,
-    batch_size: int = 2000,
+    batch_size: int = 4000,
     batch_interval: float = 1.0,
     split_content_func: Optional[Callable] = None,
     rss_items: Optional[list] = None,
@@ -1331,6 +1226,7 @@ def send_to_generic_webhook(
     ai_analysis: Any = None,
     display_regions: Optional[Dict] = None,
     standalone_data: Optional[Dict] = None,
+    channel_label: str = "通用Webhook",
 ) -> bool:
     """
     发送到通用 Webhook（支持分批发送，支持自定义 JSON 模板，支持热榜+RSS合并+独立展示区）
@@ -1361,33 +1257,27 @@ def send_to_generic_webhook(
     if proxy_url:
         proxies = {"http": proxy_url, "https": proxy_url}
 
-    is_discord = _is_discord_webhook(webhook_url)
-    use_discord_payload = is_discord and (
-        not payload_template or _is_discord_content_template(payload_template)
+    is_discord = is_discord_webhook_url(webhook_url)
+    log_name = "Discord" if is_discord else channel_label
+    log_prefix = f"{log_name}{account_label}" if account_label else log_name
+
+    # Discord rejects content over 2,000 characters.  The shared report
+    # splitter uses UTF-8 bytes, so cap Discord batches conservatively even
+    # when a legacy GENERIC_WEBHOOK_URL still supplies the endpoint.
+    effective_batch_size = (
+        min(batch_size, DISCORD_SAFE_BATCH_BYTES) if is_discord else batch_size
     )
 
-    # 日志前缀
-    base_log_name = "Discord" if is_discord else "通用Webhook"
-    log_prefix = f"{base_log_name}{account_label}" if account_label else base_log_name
-
-    # 渲染 AI 分析内容并提取统计数据
-    ai_channel = "discord" if is_discord else "wework"
-    ai_content = _render_ai_analysis(ai_analysis, ai_channel) if ai_analysis else None
+    # 渲染 AI 分析内容并提取统计数据（通用 Webhook 使用 markdown 格式）
+    ai_content = _render_ai_analysis(ai_analysis, "wework") if ai_analysis else None
     ai_stats = _extract_ai_stats(ai_analysis)
 
-    effective_batch_size = batch_size
-    if is_discord:
-        if batch_size == 2000:
-            effective_batch_size = DISCORD_EMBED_BATCH_SIZE
-        else:
-            effective_batch_size = min(batch_size, DISCORD_EMBED_BATCH_SIZE)
-
     # 获取分批内容
-    # 使用 'generic_webhook' 作为 format_type 以获取 markdown 格式的通用输出
+    # 使用 'wework' 作为 format_type 以获取 markdown 格式的通用输出
     # 预留一定空间给模板外壳
-    template_overhead = 100 if use_discord_payload else 200
+    template_overhead = 200
     batches = split_content_func(
-        report_data, "generic_webhook", update_info, max_bytes=effective_batch_size - template_overhead, mode=mode,
+        report_data, "wework", update_info, max_bytes=effective_batch_size - template_overhead, mode=mode,
         rss_items=rss_items,
         rss_new_items=rss_new_items,
         ai_content=ai_content,
@@ -1397,7 +1287,7 @@ def send_to_generic_webhook(
     )
 
     # 统一添加批次头部
-    batches = add_batch_headers(batches, "generic_webhook", effective_batch_size)
+    batches = add_batch_headers(batches, "wework", effective_batch_size)
 
     print(f"{log_prefix}消息分为 {len(batches)} 批次发送 [{report_type}]")
 
@@ -1409,11 +1299,11 @@ def send_to_generic_webhook(
         )
 
         try:
-            # 构建 payload
-            if use_discord_payload:
-                payload = _build_discord_payload(
-                    report_type, batch_content, i, len(batches)
-                )
+            # Discord only accepts content (plus Discord-specific optional
+            # fields); ignore legacy generic templates so a title key cannot
+            # make an otherwise valid Discord request fail.
+            if is_discord:
+                payload = {"content": batch_content}
             elif payload_template:
                 # 简单的字符串替换
                 # 注意：content 可能包含 JSON 特殊字符，需要先转义
@@ -1453,3 +1343,43 @@ def send_to_generic_webhook(
     print(f"{log_prefix}所有 {len(batches)} 批次发送完成 [{report_type}]")
 
     return True
+
+
+def send_to_discord(
+    webhook_url: str,
+    report_data: Dict,
+    report_type: str,
+    update_info: Optional[Dict] = None,
+    proxy_url: Optional[str] = None,
+    mode: str = "daily",
+    account_label: str = "",
+    *,
+    batch_size: int = DISCORD_SAFE_BATCH_BYTES,
+    batch_interval: float = 1.0,
+    split_content_func: Optional[Callable] = None,
+    rss_items: Optional[list] = None,
+    rss_new_items: Optional[list] = None,
+    ai_analysis: Any = None,
+    display_regions: Optional[Dict] = None,
+    standalone_data: Optional[Dict] = None,
+) -> bool:
+    """Send a Discord-compatible content-only webhook message."""
+    return send_to_generic_webhook(
+        webhook_url=webhook_url,
+        payload_template='{"content": "{content}"}',
+        report_data=report_data,
+        report_type=report_type,
+        update_info=update_info,
+        proxy_url=proxy_url,
+        mode=mode,
+        account_label=account_label,
+        batch_size=min(batch_size, DISCORD_SAFE_BATCH_BYTES),
+        batch_interval=batch_interval,
+        split_content_func=split_content_func,
+        rss_items=rss_items,
+        rss_new_items=rss_new_items,
+        ai_analysis=ai_analysis,
+        display_regions=display_regions,
+        standalone_data=standalone_data,
+        channel_label="Discord",
+    )

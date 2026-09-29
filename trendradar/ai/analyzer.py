@@ -8,7 +8,7 @@ AI 分析器模块
 
 import json
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, NamedTuple, Optional
 
 from trendradar.ai.client import AIClient
 from trendradar.ai.prompt_loader import load_prompt_template
@@ -19,7 +19,6 @@ class AIAnalysisResult:
     """AI 分析结果"""
     # 新版 5 核心板块
     core_trends: str = ""                # 核心热点与舆情态势
-    market_regions: str = ""             # 地域与市场拆解（国内/国外/A股/港股/美股）
     sentiment_controversy: str = ""      # 舆论风向与争议
     signals: str = ""                    # 异动与弱信号
     rss_insights: str = ""               # RSS 深度洞察
@@ -44,6 +43,16 @@ class AIAnalysisResult:
     ai_mode: str = ""                    # AI 分析使用的模式 (daily/current/incremental)
     include_rss: bool = True             # 是否启用 RSS 分析
     include_standalone: bool = False     # 是否启用独立展示区分析
+
+
+class PreparedNewsContent(NamedTuple):
+    news_content: str
+    rss_content: str
+    hotlist_total: int
+    rss_total: int
+    analyzed_count: int
+    hotlist_analyzed: int
+    rss_analyzed: int
 
 
 class AIAnalyzer:
@@ -118,39 +127,40 @@ class AIAnalyzer:
         
         # 打印配置信息方便调试
         model = self.ai_config.get("MODEL", "unknown")
-        api_key = self.client.api_key or ""
+        credential_configured = bool(
+            self.client.auth_token or self.client.api_key
+        )
         api_base = self.ai_config.get("API_BASE", "")
-        masked_key = f"{api_key[:5]}******" if len(api_key) >= 5 else "******"
         model_display = model.replace("/", "/\u200b") if model else "unknown"
 
         print(f"[AI] 模型: {model_display}")
-        print(f"[AI] Key : {masked_key}")
+        print(f"[AI] 凭证: {'已配置' if credential_configured else '未配置'}")
 
         if api_base:
             print(f"[AI] 接口: 存在自定义 API 端点")
 
-        timeout = self.ai_config.get("TIMEOUT", 600)
+        timeout = self.ai_config.get("TIMEOUT", 120)
         max_tokens = self.ai_config.get("MAX_TOKENS", 5000)
         print(f"[AI] 参数: timeout={timeout}, max_tokens={max_tokens}")
 
-        if not self.client.api_key:
+        if not credential_configured:
             return AIAnalysisResult(
                 success=False,
-                error="未配置 AI API Key，请在 config.yaml 或环境变量 AI_API_KEY 中设置"
+                error="未配置 AI 凭证，请设置 Bearer Token 或 API Key"
             )
 
         # 准备新闻内容并获取统计数据
-        news_content, rss_content, hotlist_total, rss_total, analyzed_count, hotlist_analyzed, rss_analyzed = self._prepare_news_content(stats, rss_stats)
-        total_news = hotlist_total + rss_total
+        prepared = self._prepare_news_content(stats, rss_stats)
+        total_news = prepared.hotlist_total + prepared.rss_total
 
-        if not news_content and not rss_content:
+        if not prepared.news_content and not prepared.rss_content:
             return AIAnalysisResult(
                 success=False,
                 skipped=True,
                 error="本轮无新增热点内容，跳过 AI 分析",
                 total_news=total_news,
-                hotlist_count=hotlist_total,
-                rss_count=rss_total,
+                hotlist_count=prepared.hotlist_total,
+                rss_count=prepared.rss_total,
                 analyzed_news=0,
                 max_news_limit=self.max_news
             )
@@ -167,12 +177,12 @@ class AIAnalyzer:
         user_prompt = user_prompt.replace("{report_mode}", report_mode)
         user_prompt = user_prompt.replace("{report_type}", report_type)
         user_prompt = user_prompt.replace("{current_time}", current_time)
-        user_prompt = user_prompt.replace("{news_count}", str(hotlist_total))
-        user_prompt = user_prompt.replace("{rss_count}", str(rss_total))
+        user_prompt = user_prompt.replace("{news_count}", str(prepared.hotlist_total))
+        user_prompt = user_prompt.replace("{rss_count}", str(prepared.rss_total))
         user_prompt = user_prompt.replace("{platforms}", ", ".join(platforms) if platforms else "多平台")
         user_prompt = user_prompt.replace("{keywords}", ", ".join(keywords[:20]) if keywords else "无")
-        user_prompt = user_prompt.replace("{news_content}", news_content)
-        user_prompt = user_prompt.replace("{rss_content}", rss_content)
+        user_prompt = user_prompt.replace("{news_content}", prepared.news_content)
+        user_prompt = user_prompt.replace("{rss_content}", prepared.rss_content)
         user_prompt = user_prompt.replace("{language}", self.language)
 
         # 构建独立展示区内容
@@ -219,11 +229,11 @@ class AIAnalyzer:
 
             # 填充统计数据
             result.total_news = total_news
-            result.hotlist_count = hotlist_total
-            result.rss_count = rss_total
-            result.analyzed_news = analyzed_count
-            result.hotlist_analyzed = hotlist_analyzed
-            result.rss_analyzed = rss_analyzed
+            result.hotlist_count = prepared.hotlist_total
+            result.rss_count = prepared.rss_total
+            result.analyzed_news = prepared.analyzed_count
+            result.hotlist_analyzed = prepared.hotlist_analyzed
+            result.rss_analyzed = prepared.rss_analyzed
             result.standalone_analyzed = standalone_count
             result.max_news_limit = self.max_news
             result.include_rss = self.include_rss
@@ -247,16 +257,7 @@ class AIAnalyzer:
         self,
         stats: List[Dict],
         rss_stats: Optional[List[Dict]] = None,
-    ) -> tuple:
-        """
-        准备新闻内容文本（增强版）
-
-        热榜新闻包含：来源、标题、排名范围、时间范围、出现次数
-        RSS 包含：来源、标题、发布时间
-
-        Returns:
-            tuple: (news_content, rss_content, hotlist_total, rss_total, analyzed_count, hotlist_analyzed, rss_analyzed)
-        """
+    ) -> PreparedNewsContent:
         news_lines = []
         rss_lines = []
         news_count = 0
@@ -305,9 +306,6 @@ class AIAnalyzer:
                         appear_count = t.get("count", 1)
 
                         line += f" | 排名:{rank_str} | 时间:{time_str} | 出现:{appear_count}次"
-                        category_hint = self._format_category_hint(title, source)
-                        if category_hint:
-                            line += f" | {category_hint}"
 
                         # 开启完整时间线时，额外添加轨迹
                         if self.include_rank_timeline:
@@ -353,9 +351,6 @@ class AIAnalyzer:
                             line = f"- {title}"
                         if time_display:
                             line += f" | {time_display}"
-                        category_hint = self._format_category_hint(title, source)
-                        if category_hint:
-                            line += f" | {category_hint}"
                         rss_lines.append(line)
 
                         rss_count += 1
@@ -366,89 +361,15 @@ class AIAnalyzer:
         rss_content = "\n".join(rss_lines) if rss_lines else ""
         total_count = news_count + rss_count
 
-        return news_content, rss_content, hotlist_total, rss_total, total_count, news_count, rss_count
-
-    def _format_category_hint(self, title: str, source: str = "") -> str:
-        """根据标题和来源给 AI 提供轻量地域/市场提示"""
-        geo_tags, market_tags = self._infer_geo_market_tags(title, source)
-        if not geo_tags and not market_tags:
-            return ""
-
-        parts = []
-        if geo_tags:
-            parts.append(f"地域:{'/'.join(geo_tags)}")
-        if market_tags:
-            parts.append(f"市场:{'/'.join(market_tags)}")
-        return f"分类:{';'.join(parts)}"
-
-    def _format_source_geo_hint(self, source: str = "") -> str:
-        """根据来源名称给独立展示区提供国内/国外提示"""
-        geo_tags, _ = self._infer_geo_market_tags("", source)
-        if not geo_tags:
-            return ""
-        return f"来源地域:{'/'.join(geo_tags)}"
-
-    def _infer_geo_market_tags(self, title: str, source: str = "") -> tuple:
-        """从标题和来源中推断国内/国外及 A股/港股/美股标签"""
-        text = f"{title} {source}".lower()
-        raw_text = f"{title} {source}"
-        geo_tags = []
-        market_tags = []
-
-        def add_unique(items: list, value: str) -> None:
-            if value not in items:
-                items.append(value)
-
-        a_share_keywords = (
-            "a股", "a 股", "沪指", "深成指", "创业板", "科创板", "北交所",
-            "上证", "深证", "两市", "涨停", "跌停", "北向资金", "沪深",
+        return PreparedNewsContent(
+            news_content=news_content,
+            rss_content=rss_content,
+            hotlist_total=hotlist_total,
+            rss_total=rss_total,
+            analyzed_count=total_count,
+            hotlist_analyzed=news_count,
+            rss_analyzed=rss_count,
         )
-        hk_keywords = (
-            "港股", "恒生", "恒指", "港交所", "h股", "h 股", "南向资金",
-            "港股通", "恒生科技", "国企指数",
-        )
-        us_keywords = (
-            "美股", "纳指", "纳斯达克", "标普", "道指", "道琼斯", "nyse",
-            "nasdaq", "s&p", "dow jones", "nvidia", "tesla", "英伟达",
-            "特斯拉", "苹果公司", "微软", "meta", "google", "alphabet",
-        )
-        domestic_keywords = (
-            "中国", "国内", "内地", "大陆", "北京", "上海", "深圳", "香港",
-            "央行", "证监会", "商务部", "工信部", "a股", "港股",
-            "微博", "知乎", "百度", "今日头条", "抖音", "快手", "b站",
-            "bilibili", "财联社", "华尔街见闻", "36氪", "it之家", "雪球",
-            "虎嗅", "澎湃", "第一财经", "证券时报", "界面新闻",
-        )
-        overseas_keywords = (
-            "国外", "海外", "美国", "欧洲", "日本", "韩国", "印度", "中东",
-            "美联储", "白宫", "特朗普", "拜登", "openai", "anthropic",
-            "hacker news", "bloomberg", "reuters", "yahoo", "techcrunch",
-            "the verge", "cnbc", "bbc", "guardian", "financial times",
-            "wall street journal", "wsj", "nytimes", "new york times",
-            "the information", "wired", "ars technica", "github trending",
-        )
-
-        if any(keyword in text for keyword in a_share_keywords):
-            add_unique(market_tags, "A股")
-            add_unique(geo_tags, "国内")
-        if any(keyword in text for keyword in hk_keywords):
-            add_unique(market_tags, "港股")
-            add_unique(geo_tags, "国内")
-        if any(keyword in text for keyword in us_keywords):
-            add_unique(market_tags, "美股")
-            add_unique(geo_tags, "国外")
-
-        if any(keyword in text for keyword in domestic_keywords):
-            add_unique(geo_tags, "国内")
-        if any(keyword in text for keyword in overseas_keywords):
-            add_unique(geo_tags, "国外")
-
-        # 保留对全大写 A 股写法的兼容，避免 lower 后漏掉中文夹空格变体。
-        if "A股" in raw_text or "A 股" in raw_text:
-            add_unique(market_tags, "A股")
-            add_unique(geo_tags, "国内")
-
-        return geo_tags, market_tags
 
     def _call_ai(self, user_prompt: str) -> str:
         """调用 AI API（使用 LiteLLM）"""
@@ -567,20 +488,13 @@ class AIAnalyzer:
             if not items:
                 continue
 
-            source_hint = self._format_source_geo_hint(platform_name)
-            source_header = f"### [{platform_name}]"
-            if source_hint:
-                source_header += f" | {source_hint}"
-            lines.append(source_header)
+            lines.append(f"### [{platform_name}]")
             for item in items:
                 title = item.get("title", "")
                 if not title:
                     continue
 
                 line = f"- {title}"
-                category_hint = self._format_category_hint(title, platform_name)
-                if category_hint:
-                    line += f" | {category_hint}"
 
                 # 排名信息
                 ranks = item.get("ranks", [])
@@ -620,11 +534,7 @@ class AIAnalyzer:
             if not items:
                 continue
 
-            source_hint = self._format_source_geo_hint(feed_name)
-            source_header = f"### [{feed_name}]"
-            if source_hint:
-                source_header += f" | {source_hint}"
-            lines.append(source_header)
+            lines.append(f"### [{feed_name}]")
             for item in items:
                 title = item.get("title", "")
                 if not title:
@@ -634,9 +544,6 @@ class AIAnalyzer:
                 published_at = item.get("published_at", "")
                 if published_at:
                     line += f" | {published_at}"
-                category_hint = self._format_category_hint(title, feed_name)
-                if category_hint:
-                    line += f" | {category_hint}"
 
                 lines.append(line)
             lines.append("")
@@ -716,27 +623,11 @@ class AIAnalyzer:
 
         # 解析成功，提取字段
         try:
-            def get_text_field(key: str, *aliases: str) -> str:
-                value = data.get(key, "")
-                if not value:
-                    for alias in aliases:
-                        value = data.get(alias, "")
-                        if value:
-                            break
-                if value is None:
-                    return ""
-                if isinstance(value, (dict, list)):
-                    return json.dumps(value, ensure_ascii=False)
-                return str(value)
-
-            result.core_trends = get_text_field("core_trends")
-            result.market_regions = get_text_field(
-                "market_regions", "region_market_analysis", "market_analysis"
-            )
-            result.sentiment_controversy = get_text_field("sentiment_controversy")
-            result.signals = get_text_field("signals")
-            result.rss_insights = get_text_field("rss_insights")
-            result.outlook_strategy = get_text_field("outlook_strategy")
+            result.core_trends = data.get("core_trends", "")
+            result.sentiment_controversy = data.get("sentiment_controversy", "")
+            result.signals = data.get("signals", "")
+            result.rss_insights = data.get("rss_insights", "")
+            result.outlook_strategy = data.get("outlook_strategy", "")
 
             # 解析独立展示区概括
             summaries = data.get("standalone_summaries", {})

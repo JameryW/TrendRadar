@@ -4,7 +4,7 @@
 
 提供多渠道通知推送功能，包括：
 - 飞书、钉钉、企业微信
-- Telegram、Slack
+- Discord、Telegram、Slack
 - Email、ntfy、Bark
 
 模块结构：
@@ -42,6 +42,7 @@ from trendradar.notification.senders import (
     send_to_email,
     send_to_ntfy,
     send_to_bark,
+    send_to_discord,
     send_to_slack,
     SMTP_CONFIGS,
 )
@@ -70,6 +71,7 @@ __all__ = [
     "send_to_email",
     "send_to_ntfy",
     "send_to_bark",
+    "send_to_discord",
     "send_to_slack",
     "SMTP_CONFIGS",
     # 通知调度器

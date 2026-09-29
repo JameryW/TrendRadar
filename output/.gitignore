@@ -1,0 +1,3 @@
+# TrendRadar runtime output lives in the repository-local checkout.
+*
+!.gitignore

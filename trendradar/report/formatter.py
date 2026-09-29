@@ -66,16 +66,18 @@ def format_title_for_platform(
         title_prefix = "🆕 " if title_data.get("is_new") else ""
 
         if show_source:
-            result = f"<font color='grey'>[{title_data['source_name']}]</font> {title_prefix}{formatted_title}"
+            result = f"<font color='grey'>&#91;{title_data['source_name']}&#93;</font> {title_prefix}{formatted_title}"
         elif show_keyword and keyword:
-            result = f"<font color='blue'>[{keyword}]</font> {title_prefix}{formatted_title}"
+            result = f"<font color='blue'>&#91;{keyword}&#93;</font> {title_prefix}{formatted_title}"
         else:
             result = f"{title_prefix}{formatted_title}"
 
         if rank_display:
             result += f" {rank_display}"
+        if title_data["time_display"]:
+            result += f" <font color='grey'>- {title_data['time_display']}</font>"
         if title_data["count"] > 1:
-            result += f" [{title_data['count']}]"
+            result += f" <font color='green'>({title_data['count']}次)</font>"
 
         return result
 
@@ -96,8 +98,10 @@ def format_title_for_platform(
 
         if rank_display:
             result += f" {rank_display}"
+        if title_data["time_display"]:
+            result += f" - {title_data['time_display']}"
         if title_data["count"] > 1:
-            result += f" [{title_data['count']}]"
+            result += f" ({title_data['count']}次)"
 
         return result
 
@@ -119,8 +123,10 @@ def format_title_for_platform(
 
         if rank_display:
             result += f" {rank_display}"
+        if title_data["time_display"]:
+            result += f" - {title_data['time_display']}"
         if title_data["count"] > 1:
-            result += f" [{title_data['count']}]"
+            result += f" ({title_data['count']}次)"
 
         return result
 
@@ -141,8 +147,10 @@ def format_title_for_platform(
 
         if rank_display:
             result += f" {rank_display}"
+        if title_data["time_display"]:
+            result += f" <code>- {title_data['time_display']}</code>"
         if title_data["count"] > 1:
-            result += f" <code>[{title_data['count']}]</code>"
+            result += f" <code>({title_data['count']}次)</code>"
 
         return result
 
@@ -163,8 +171,10 @@ def format_title_for_platform(
 
         if rank_display:
             result += f" {rank_display}"
+        if title_data["time_display"]:
+            result += f" `- {title_data['time_display']}`"
         if title_data["count"] > 1:
-            result += f" `[{title_data['count']}]`"
+            result += f" `({title_data['count']}次)`"
 
         return result
 
@@ -192,8 +202,10 @@ def format_title_for_platform(
         )
         if rank_display:
             result += f" {rank_display}"
+        if title_data["time_display"]:
+            result += f" `- {title_data['time_display']}`"
         if title_data["count"] > 1:
-            result += f" `[{title_data['count']}]`"
+            result += f" `({title_data['count']}次)`"
 
         return result
 
@@ -225,8 +237,11 @@ def format_title_for_platform(
 
         if rank_display:
             formatted_title += f" {rank_display}"
+        if title_data["time_display"]:
+            escaped_time = html_escape(title_data["time_display"])
+            formatted_title += f" <font color='grey'>- {escaped_time}</font>"
         if title_data["count"] > 1:
-            formatted_title += f" <font color='green'>[{title_data['count']}]</font>"
+            formatted_title += f" <font color='green'>({title_data['count']}次)</font>"
 
         if title_data.get("is_new"):
             formatted_title = f"<div class='new-title'>🆕 {formatted_title}</div>"

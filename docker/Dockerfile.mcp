@@ -25,6 +25,11 @@ ENV PYTHONUNBUFFERED=1 \
     CONFIG_PATH=/app/config/config.yaml \
     FREQUENCY_WORDS_PATH=/app/config/frequency_words.txt
 
+# Keep the exact source identity alongside the baked application code. Formal
+# deployment passes the full TrendRadar checkout HEAD through this build arg.
+ARG BUILD_SHA=unknown
+RUN printf '%s\n' "$BUILD_SHA" > /app/BUILD_SHA
+
 # MCP HTTP 服务端口（默认 3333，可通过环境变量 MCP_PORT 覆盖）
 ENV MCP_PORT=3333
 EXPOSE 3333

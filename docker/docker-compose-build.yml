@@ -3,6 +3,9 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+      args:
+        BUILD_SHA: ${TRENDRADAR_BUILD_SHA:-unknown}
+    image: heuristic-trendradar:local
     container_name: trendradar
     restart: unless-stopped
 
@@ -39,6 +42,7 @@ services:
       # Slack配置
       - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
       # 通用Webhook配置
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
       - GENERIC_WEBHOOK_URL=${GENERIC_WEBHOOK_URL:-}
       - GENERIC_WEBHOOK_TEMPLATE=${GENERIC_WEBHOOK_TEMPLATE:-}
       # AI 配置（ai_analysis 和 ai_translation 共享模型配置）
@@ -61,6 +65,9 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.mcp
+      args:
+        BUILD_SHA: ${TRENDRADAR_BUILD_SHA:-unknown}
+    image: heuristic-trendradar-mcp:local
     container_name: trendradar-mcp
     restart: unless-stopped
 

@@ -43,10 +43,10 @@ def render_feishu_content(
     if region_order is None:
         region_order = DEFAULT_REGION_ORDER
 
-    # 生成热点统计部分
+    # 生成热点词汇统计部分
     stats_content = ""
     if report_data["stats"]:
-        stats_content += "📊 **热点看板**\n"
+        stats_content += "📊 **热点词汇统计**\n\n"
 
         total_count = len(report_data["stats"])
 
@@ -55,20 +55,37 @@ def render_feishu_content(
             count = stat["count"]
 
             sequence_display = f"<font color='grey'>[{i + 1}/{total_count}]</font>"
-            stats_content += f"▸ **{word}** ({count}条)\n"
+
+            if count >= 10:
+                stats_content += f"🔥 {sequence_display} **{word}** : <font color='red'>{count}</font> 条\n\n"
+            elif count >= 5:
+                stats_content += f"📈 {sequence_display} **{word}** : <font color='orange'>{count}</font> 条\n\n"
+            else:
+                stats_content += f"📌 {sequence_display} **{word}** : {count} 条\n\n"
+
             for j, title_data in enumerate(stat["titles"], 1):
-                formatted_title = format_title_for_platform("feishu", title_data, show_source=True)
+                formatted_title = format_title_for_platform(
+                    "feishu", title_data, show_source=True
+                )
                 stats_content += f"  {j}. {formatted_title}\n"
+
+                if j < len(stat["titles"]):
+                    stats_content += "\n"
+
             if i < len(report_data["stats"]) - 1:
-                stats_content += "\n"
+                stats_content += f"\n{separator}\n\n"
 
     # 生成新增新闻部分
     new_titles_content = ""
     if show_new_section and report_data["new_titles"]:
-        new_titles_content += f"🆕 **新增热点** (共 {report_data['total_new_count']} 条)\n"
+        new_titles_content += (
+            f"🆕 **本次新增热点新闻** (共 {report_data['total_new_count']} 条)\n\n"
+        )
 
         for source_data in report_data["new_titles"]:
-            new_titles_content += f"**{source_data['source_name']}** ({len(source_data['titles'])} 条):\n"
+            new_titles_content += (
+                f"**{source_data['source_name']}** ({len(source_data['titles'])} 条):\n"
+            )
 
             for j, title_data in enumerate(source_data["titles"], 1):
                 title_data_copy = title_data.copy()
@@ -98,7 +115,7 @@ def render_feishu_content(
         content = region_contents.get(region, "")
         if content:
             if text_content:
-                text_content += f"{separator}\n"
+                text_content += f"\n{separator}\n\n"
             text_content += content
 
     if not text_content:
@@ -164,32 +181,47 @@ def render_dingtalk_content(
     # 头部信息由 splitter 统一构建，此处不再重复
     header_content = ""
 
-    # 生成热点统计部分
+    # 生成热点词汇统计部分
     stats_content = ""
     if report_data["stats"]:
-        stats_content += "📊 **热点看板**\n"
+        stats_content += "📊 **热点词汇统计**\n\n"
 
         total_count = len(report_data["stats"])
 
         for i, stat in enumerate(report_data["stats"]):
             word = stat["word"]
             count = stat["count"]
-            stats_content += f"▸ **{word}** ({count}条)\n"
+
+            sequence_display = f"[{i + 1}/{total_count}]"
+
+            if count >= 10:
+                stats_content += f"🔥 {sequence_display} **{word}** : **{count}** 条\n\n"
+            elif count >= 5:
+                stats_content += f"📈 {sequence_display} **{word}** : **{count}** 条\n\n"
+            else:
+                stats_content += f"📌 {sequence_display} **{word}** : {count} 条\n\n"
+
             for j, title_data in enumerate(stat["titles"], 1):
                 formatted_title = format_title_for_platform(
                     "dingtalk", title_data, show_source=True
                 )
                 stats_content += f"  {j}. {formatted_title}\n"
+
+                if j < len(stat["titles"]):
+                    stats_content += "\n"
+
             if i < len(report_data["stats"]) - 1:
-                stats_content += "\n"
+                stats_content += "\n---\n\n"
 
     # 生成新增新闻部分
     new_titles_content = ""
     if show_new_section and report_data["new_titles"]:
-        new_titles_content += f"🆕 **新增热点** (共 {report_data['total_new_count']} 条)\n"
+        new_titles_content += (
+            f"🆕 **本次新增热点新闻** (共 {report_data['total_new_count']} 条)\n\n"
+        )
 
         for source_data in report_data["new_titles"]:
-            new_titles_content += f"**{source_data['source_name']}** ({len(source_data['titles'])} 条):\n"
+            new_titles_content += f"**{source_data['source_name']}** ({len(source_data['titles'])} 条):\n\n"
 
             for j, title_data in enumerate(source_data["titles"], 1):
                 title_data_copy = title_data.copy()
@@ -220,7 +252,7 @@ def render_dingtalk_content(
         content = region_contents.get(region, "")
         if content:
             if has_content:
-                text_content += "---\n"
+                text_content += "\n---\n\n"
             text_content += content
             has_content = True
 
@@ -265,12 +297,12 @@ def _render_rss_section_feishu(rss_items: list, separator: str = "---") -> str:
             feeds_map[feed_id] = []
         feeds_map[feed_id].append(item)
 
-    text_content = f"📰 **RSS 频道** (共 {len(rss_items)} 条)\n"
+    text_content = f"📰 **RSS 订阅更新** (共 {len(rss_items)} 条)\n\n"
 
     for feed_id, items in feeds_map.items():
         feed_name = items[0].get("feed_name", feed_id) if items else feed_id
 
-        text_content += f"**{feed_name}** ({len(items)} 条)\n"
+        text_content += f"**{feed_name}** ({len(items)} 条)\n\n"
 
         for i, item in enumerate(items, 1):
             title = item.get("title", "")
@@ -283,9 +315,14 @@ def _render_rss_section_feishu(rss_items: list, separator: str = "---") -> str:
                 text_content += f"  {i}. {title}"
 
             if published_at:
-                text_content += f" `[{published_at}]`"
+                text_content += f" <font color='grey'>- {published_at}</font>"
 
             text_content += "\n"
+
+            if i < len(items):
+                text_content += "\n"
+
+        text_content += "\n"
 
     return text_content.rstrip("\n")
 
@@ -303,7 +340,7 @@ def _render_rss_section_markdown(rss_items: list) -> str:
             feeds_map[feed_id] = []
         feeds_map[feed_id].append(item)
 
-    text_content = f"📰 **RSS 频道** (共 {len(rss_items)} 条)\n"
+    text_content = f"📰 **RSS 订阅更新** (共 {len(rss_items)} 条)\n\n"
 
     for feed_id, items in feeds_map.items():
         feed_name = items[0].get("feed_name", feed_id) if items else feed_id
@@ -321,8 +358,10 @@ def _render_rss_section_markdown(rss_items: list) -> str:
                 text_content += f"  {i}. {title}"
 
             if published_at:
-                text_content += f" `[{published_at}]`"
+                text_content += f" `{published_at}`"
 
             text_content += "\n"
+
+        text_content += "\n"
 
     return text_content.rstrip("\n")

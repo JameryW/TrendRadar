@@ -10,6 +10,8 @@ import json
 from typing import List, Optional, Dict, Union
 
 from fastmcp import FastMCP
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from .tools.data_query import DataQueryTools
 from .tools.analytics import AnalyticsTools
@@ -25,6 +27,12 @@ from .utils.errors import MCPError
 
 # 创建 FastMCP 2.0 应用
 mcp = FastMCP('trendradar-news')
+
+
+@mcp.custom_route("/health", methods=["GET"], include_in_schema=False)
+async def health_check(_request: Request) -> JSONResponse:
+    """Return process liveness without allocating a stateful MCP session."""
+    return JSONResponse({"status": "ok", "service": "trendradar-mcp"})
 
 # 全局工具实例（在第一次请求时初始化）
 _tools_instances = {}
@@ -1086,6 +1094,7 @@ async def send_notification(
     - ntfy：Markdown（自动剥离 <font> 标签）
     - Bark：Markdown（自动简化为粗体+链接，适配 iOS 推送）
     - Slack：mrkdwn（自动转换 **→*、~~→~、[text](url)→<url|text>）
+    - Discord：Webhook content（自动按 2000 字符限制分批）
     - 通用 Webhook：Markdown（支持自定义模板）
 
     提示：发送前可调用 get_channel_format_guide 获取目标渠道的详细格式化策略，
@@ -1095,7 +1104,7 @@ async def send_notification(
         message: markdown 格式的消息内容（必需）
         title: 消息标题，默认 "TrendRadar 通知"
         channels: 指定发送的渠道列表，不指定则发送到所有已配置渠道
-                  可选值: feishu, dingtalk, wework, telegram, email, ntfy, bark, slack, generic_webhook
+                  可选值: feishu, dingtalk, wework, telegram, email, ntfy, bark, slack, discord, generic_webhook
 
     Returns:
         JSON格式的发送结果，包含每个渠道的发送状态
@@ -1143,7 +1152,7 @@ def run_server(
         print("  协议: MCP over stdio (标准输入输出)")
         print("  说明: 通过标准输入输出与 MCP 客户端通信")
     elif transport == 'http':
-        print(f"  协议: MCP over HTTP (生产环境)")
+        print("  协议: MCP over HTTP (生产环境)")
         print(f"  服务器监听: {host}:{port}")
 
     if project_root:
@@ -1202,7 +1211,7 @@ def run_server(
 
     # 根据传输模式运行服务器
     if transport == 'stdio':
-        mcp.run(transport='stdio', show_banner=False)
+        mcp.run(transport='stdio')
     elif transport == 'http':
         # HTTP 模式（生产推荐）
         mcp.run(

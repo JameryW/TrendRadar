@@ -78,4 +78,10 @@ ENV PYTHONUNBUFFERED=1 \
     CONFIG_PATH=/app/config/config.yaml \
     FREQUENCY_WORDS_PATH=/app/config/frequency_words.txt
 
+# Keep the exact source identity alongside the baked application code. Formal
+# deployment passes the full TrendRadar checkout HEAD through this build arg;
+# ad-hoc builds remain explicitly unattributed instead of looking current.
+ARG BUILD_SHA=unknown
+RUN printf '%s\n' "$BUILD_SHA" > /app/BUILD_SHA
+
 ENTRYPOINT ["/entrypoint.sh"]
