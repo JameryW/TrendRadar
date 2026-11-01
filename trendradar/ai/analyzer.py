@@ -17,8 +17,9 @@ from trendradar.ai.prompt_loader import load_prompt_template
 @dataclass
 class AIAnalysisResult:
     """AI 分析结果"""
-    # 新版 5 核心板块
+    # 核心板块
     core_trends: str = ""                # 核心热点与舆情态势
+    market_regions: str = ""             # 地域与市场影响研判
     sentiment_controversy: str = ""      # 舆论风向与争议
     signals: str = ""                    # 异动与弱信号
     rss_insights: str = ""               # RSS 深度洞察
@@ -624,6 +625,7 @@ class AIAnalyzer:
         # 解析成功，提取字段
         try:
             result.core_trends = data.get("core_trends", "")
+            result.market_regions = data.get("market_regions", "")
             result.sentiment_controversy = data.get("sentiment_controversy", "")
             result.signals = data.get("signals", "")
             result.rss_insights = data.get("rss_insights", "")

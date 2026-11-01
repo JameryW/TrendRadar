@@ -243,6 +243,8 @@ CHANNEL_FORMAT_GUIDES = {
             "<font color='red/green/grey/orange/blue'>彩色文本</font>",
             "---（分割线）",
             "换行分隔段落",
+            "AI 深度研判副标题（<font color='grey'>📊 深度研判 ...</font>）",
+            "深度研判板块与分类 emoji 标识（🎯/🌏/💬/📡/🧠/💡/🌐）",
         ],
         "unsupported": [
             "# 标题语法（不渲染为标题样式）",
@@ -253,7 +255,7 @@ CHANNEL_FORMAT_GUIDES = {
             "飞书卡片 Markdown 格式化策略：\n"
             "1. 用 **粗体** 作小标题和重点词\n"
             "2. 用 <font color='red'>红色</font> 标记紧急/重要内容\n"
-            "3. 用 <font color='grey'>灰色</font> 标记辅助信息（时间、来源）\n"
+            "3. 用 <font color='grey'>灰色</font> 标记辅助信息（时间、来源、研判统计）\n"
             "4. 用 <font color='orange'>橙色</font> 标记警告\n"
             "5. 用 <font color='green'>绿色</font> 标记正面/成功信息\n"
             "6. 用 [文本](URL) 添加可点击链接\n"
@@ -274,6 +276,8 @@ CHANNEL_FORMAT_GUIDES = {
             "> 引用块",
             "---（分割线）",
             "- 无序列表 / 1. 有序列表",
+            "AI 深度研判副标题（> 📊 深度研判 ... 引用块）",
+            "深度研判板块与分类 emoji 标识（🎯/🌏/💬/📡/🧠/💡/🌐）",
         ],
         "unsupported": [
             "# 一级标题 / ## 二级标题（可能不渲染）",
@@ -285,7 +289,7 @@ CHANNEL_FORMAT_GUIDES = {
             "钉钉 Markdown 格式化策略：\n"
             "1. 用 ### 或 #### 作章节标题（不用 # 和 ##）\n"
             "2. 用 **粗体** 突出关键词和数据\n"
-            "3. 用 > 引用块展示备注或补充说明\n"
+            "3. 用 > 引用块展示备注、补充说明或 AI 研判统计副标题\n"
             "4. 用 --- 分割不同主题区域\n"
             "5. 用 [文本](URL) 添加可点击链接\n"
             "6. 用有序列表（1. 2. 3.）组织要点\n"
@@ -335,6 +339,8 @@ CHANNEL_FORMAT_GUIDES = {
             "<code>行内代码</code>（从 `代码` 转换）",
             "<a href='URL'>链接</a>（从 [文本](URL) 转换）",
             "<blockquote>引用块</blockquote>（从 > 引用 转换）",
+            "AI 深度研判副标题（<code>📊 深度研判 ...</code> 样式代码）",
+            "深度研判板块与分类 emoji 标识（🎯/🌏/💬/📡/🧠/💡/🌐）",
         ],
         "unsupported": [
             "# 标题语法（自动剥离 # 前缀）",
@@ -346,7 +352,7 @@ CHANNEL_FORMAT_GUIDES = {
             "Telegram HTML 格式化策略（输入仍为 Markdown，自动转换为 HTML）：\n"
             "1. 用 **粗体** 突出关键词（转为 <b>）\n"
             "2. 用 *斜体* 标记辅助信息（转为 <i>）\n"
-            "3. 用 `代码` 标记数据值/时间（转为 <code>）\n"
+            "3. 用 `代码` 标记数据值/时间/研判指标（转为 <code>）\n"
             "4. 用 [文本](URL) 添加链接（转为 <a>）\n"
             "5. 用 > 开头的行作引用块（转为 <blockquote>）\n"
             "6. 不要用 # 标题（Telegram 无标题样式，仅剥离 #）\n"

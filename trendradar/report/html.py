@@ -826,6 +826,13 @@ def render_html_content(
                 color: #0369a1;
             }
 
+            .ai-section-subtitle {
+                font-size: 13px;
+                color: #64748b;
+                margin-top: 4px;
+                font-weight: normal;
+            }
+
             .ai-section-badge {
                 background: #0ea5e9;
                 color: white;
@@ -1294,6 +1301,7 @@ def render_html_content(
                 border-color: #334155;
             }
             body.dark-mode .ai-section-title { color: #a5b4fc; }
+            body.dark-mode .ai-section-subtitle { color: #94a3b8; }
             body.dark-mode .ai-section-badge { background: #4f46e5; }
             body.dark-mode .ai-block {
                 background: #1e293b;
