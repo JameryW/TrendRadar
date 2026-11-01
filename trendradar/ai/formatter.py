@@ -147,7 +147,14 @@ def render_ai_analysis_discord(result: AIAnalysisResult) -> str:
             return f"ℹ️ {result.error}"
         return f"⚠️ AI 分析失败: {result.error}"
 
-    lines = ["## ✨ AI 深度研判", ""]
+    lines = ["## ✨ AI 深度研判"]
+
+    analyzed_count = getattr(result, "analyzed_news", 0)
+    if analyzed_count > 0:
+        hotlist_c = getattr(result, "hotlist_analyzed", 0)
+        rss_c = getattr(result, "rss_analyzed", 0)
+        lines.append(f"-# 📊 深度研判 {analyzed_count} 条焦点热点（热榜 {hotlist_c} ｜ RSS {rss_c}）")
+    lines.append("")
 
     def _add_section(emoji: str, title: str, content: str):
         if content:

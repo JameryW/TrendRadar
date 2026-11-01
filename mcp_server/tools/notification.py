@@ -86,7 +86,7 @@ _CHANNEL_BATCH_SIZES_DEFAULT = {
     "ntfy": 3800,       # 严格 4KB 限制（ntfy 代码默认值）
     "bark": 4000,       # config.yaml: advanced.batch_size.bark
     "slack": 4000,      # config.yaml: advanced.batch_size.slack
-    "discord": DISCORD_SAFE_BATCH_BYTES,
+    "discord": 3600,    # Discord Embed description supports up to 4096 chars
     "generic_webhook": 4000,
 }
 
@@ -811,16 +811,25 @@ def _send_discord(webhook_url: str, content: str, title: str) -> Dict:
         if 200 <= resp.status_code < 300:
             return {"success": True, "detail": ""}
 
-        # 如果 Discord 拒绝 Embed (4xx 错误)，降级为 content 纯文本重试
+        # 如果 Discord 拒绝 Embed (4xx 错误)，降级为 content 纯文本分片重试（零截断）
         if 400 <= resp.status_code < 500:
-            fallback_payload = {"content": content[:1950]}
-            resp_fallback = requests.post(
-                webhook_url,
-                headers={"Content-Type": "application/json"},
-                json=fallback_payload,
-                timeout=30,
-            )
-            if 200 <= resp_fallback.status_code < 300:
+            chunk_size = 1900
+            fallback_chunks = [
+                content[k : k + chunk_size]
+                for k in range(0, len(content), chunk_size)
+            ]
+            fb_ok = True
+            for chunk in fallback_chunks:
+                resp_fb = requests.post(
+                    webhook_url,
+                    headers={"Content-Type": "application/json"},
+                    json={"content": chunk},
+                    timeout=30,
+                )
+                if not (200 <= resp_fb.status_code < 300):
+                    fb_ok = False
+                    break
+            if fb_ok:
                 return {"success": True, "detail": "fallback_content"}
 
         try:
@@ -1019,16 +1028,25 @@ def _send_generic_webhook(
             timeout=30,
         )
 
-        # 如果是 Discord Embed 且遇到 4xx，降级为 content 纯文本重试
+        # 如果是 Discord Embed 且遇到 4xx，降级为 content 纯文本分片重试（零截断）
         if use_discord_payload and 400 <= resp.status_code < 500:
-            fallback_payload = {"content": message[:1950]}
-            resp_fallback = requests.post(
-                webhook_url,
-                headers={"Content-Type": "application/json"},
-                json=fallback_payload,
-                timeout=30,
-            )
-            if 200 <= resp_fallback.status_code < 300:
+            chunk_size = 1900
+            fallback_chunks = [
+                message[k : k + chunk_size]
+                for k in range(0, len(message), chunk_size)
+            ]
+            fb_ok = True
+            for chunk in fallback_chunks:
+                resp_fb = requests.post(
+                    webhook_url,
+                    headers={"Content-Type": "application/json"},
+                    json={"content": chunk},
+                    timeout=30,
+                )
+                if not (200 <= resp_fb.status_code < 300):
+                    fb_ok = False
+                    break
+            if fb_ok:
                 return {"success": True, "detail": "fallback_content"}
 
         ok = 200 <= resp.status_code < 300

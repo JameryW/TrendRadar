@@ -10,6 +10,7 @@ import trendradar.notification.dispatcher as dispatcher_module
 from trendradar.notification.senders import (
     _build_discord_payload,
     _extract_discord_summary_fields,
+    _get_discord_embed_color,
     send_to_generic_webhook,
 )
 
@@ -101,6 +102,7 @@ def test_generic_discord_webhook_extracts_summary_fields(monkeypatch):
         "**概览：** 15 个平台，300 条热点\n"
         "**数据：** 120 条新增\n"
         "**本轮：** 2026-11-01 18:00\n"
+        "**最热话题：** 科技创新、低空经济\n"
         "---\n"
         "## 正文内容详情\n- 条目 1\n- 条目 2"
     )
@@ -122,10 +124,11 @@ def test_generic_discord_webhook_extracts_summary_fields(monkeypatch):
     assert len(calls) == 1
     embed = calls[0][1]["embeds"][0]
     assert "fields" in embed
-    assert len(embed["fields"]) == 3
+    assert len(embed["fields"]) == 4
     assert embed["fields"][0] == {"name": "📋 概览", "value": "15 个平台，300 条热点", "inline": True}
     assert embed["fields"][1] == {"name": "📊 数据", "value": "120 条新增", "inline": True}
     assert embed["fields"][2] == {"name": "🕐 本轮", "value": "2026-11-01 18:00", "inline": True}
+    assert embed["fields"][3] == {"name": "🔥 最热话题", "value": "科技创新、低空经济", "inline": False}
     assert embed["description"].startswith("## 正文内容详情")
 
 
@@ -333,7 +336,7 @@ def test_mcp_legacy_generic_discord_notification_also_sends_embed(tmp_path, monk
     monkeypatch.setattr("mcp_server.tools.notification.requests.post", fake_post)
 
     result = NotificationTools(str(tmp_path)).send_notification(
-        message="x" * 3500,
+        message="x" * 7500,
         title="测试",
         channels=["generic_webhook"],
     )
@@ -424,16 +427,32 @@ def test_extract_discord_summary_fields():
         "**概览：** 8个平台\n"
         "**数据：** 50条\n"
         "**本轮：** 12:00\n"
+        "**最热话题：** 机器人、量子计算\n"
         "---\n"
         "正文开始"
     )
     fields, body = _extract_discord_summary_fields(content)
-    assert len(fields) == 3
+    assert len(fields) == 4
     assert fields[0]["name"] == "📋 概览"
     assert fields[0]["value"] == "8个平台"
     assert fields[1]["name"] == "📊 数据"
     assert fields[2]["name"] == "🕐 本轮"
+    assert fields[3]["name"] == "🔥 最热话题"
+    assert fields[3]["value"] == "机器人、量子计算"
+    assert fields[3]["inline"] is False
     assert body == "正文开始"
+
+
+def test_discord_embed_dynamic_colors():
+    assert _get_discord_embed_color("市场异动预警") == 0xED4245
+    assert _get_discord_embed_color("突发快讯") == 0xED4245
+    assert _get_discord_embed_color("当前报告", "🚨 检测到异动信号") == 0xED4245
+    assert _get_discord_embed_color("每日早报") == 0x57F287
+    assert _get_discord_embed_color("今日总结") == 0x57F287
+    assert _get_discord_embed_color("晚盘复盘") == 0x9B59B6
+    assert _get_discord_embed_color("夜盘跟踪") == 0x9B59B6
+    assert _get_discord_embed_color("深度分析周报") == 0xFEE75C
+    assert _get_discord_embed_color("当前榜单") == 0x5865F2
 
 
 def test_render_ai_analysis_discord():
@@ -444,12 +463,16 @@ def test_render_ai_analysis_discord():
         rss_insights="RSS观点内容",
         outlook_strategy="策略建议内容",
         standalone_summaries={"财联社": "快讯摘要"},
+        analyzed_news=45,
+        hotlist_analyzed=35,
+        rss_analyzed=10,
         success=True,
     )
     setattr(res, "market_regions", "A股/美股走势分化")
 
     rendered = render_ai_analysis_discord(res)
     assert "## ✨ AI 深度研判" in rendered
+    assert "-# 📊 深度研判 45 条焦点热点（热榜 35 ｜ RSS 10）" in rendered
     assert "**🎯 核心态势**" in rendered
     assert "**🌏 地域/市场**" in rendered
     assert "**💬 舆论分歧**" in rendered

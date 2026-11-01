@@ -41,6 +41,32 @@ from .formatters import convert_markdown_to_mrkdwn, strip_markdown
 
 DISCORD_EMBED_DESCRIPTION_LIMIT = 4096
 DISCORD_EMBED_FIELD_VALUE_LIMIT = 1024
+DISCORD_EMBED_SAFE_BATCH_BYTES = 3600
+
+
+def _get_discord_embed_color(report_type: str, content: str = "") -> int:
+    """根据报告类型和正文内容动态确定 Discord 卡片主色调
+
+    - 预警/异动/突发/暴跌：红色 0xED4245 (Alert / Critical)
+    - 日报/每日/早报/总结：翡翠绿 0x57F287 (Daily / Growth)
+    - 晚报/夜盘/复盘：紫色 0x9B59B6 (Evening / Wrap-up)
+    - 周报/月报/深度：金黄 0xFEE75C (In-depth / Weekly)
+    - 实时/当前榜单：经典 Discord Blurple 0x5865F2 (Default / Realtime)
+    """
+    rt_lower = (report_type or "").lower()
+    content_sample = (content or "")[:500]
+
+    if any(kw in rt_lower for kw in ["预警", "异动", "突发", "紧急"]) or any(
+        kw in content_sample for kw in ["🚨", "⚠️", "异动信号", "暴跌", "熔断"]
+    ):
+        return 0xED4245
+    elif any(kw in rt_lower for kw in ["日报", "每日", "总结", "早报"]):
+        return 0x57F287
+    elif any(kw in rt_lower for kw in ["晚报", "夜盘", "复盘"]):
+        return 0x9B59B6
+    elif any(kw in rt_lower for kw in ["周报", "月报", "深度"]):
+        return 0xFEE75C
+    return 0x5865F2
 
 
 def _is_discord_content_template(payload_template: Optional[str]) -> bool:
@@ -62,21 +88,18 @@ def _extract_discord_summary_fields(content: str) -> tuple:
     lines = (content or "").strip().splitlines()
     fields = []
     body_start = 0
-    expected = {"概览", "数据", "本轮"}
-    emoji_map = {"概览": "📋", "数据": "📊", "本轮": "🕐"}
+    expected = {"概览", "数据", "本轮", "最热话题"}
+    emoji_map = {"概览": "📋", "数据": "📊", "本轮": "🕐", "最热话题": "🔥"}
 
-    for idx, line in enumerate(lines[:5]):
+    for idx, line in enumerate(lines[:6]):
         stripped = line.strip()
-        if not stripped:
-            body_start = idx + 1
-            continue
-        if stripped == "---":
+        if not stripped or stripped == "---":
             body_start = idx + 1
             continue
 
-        match = re.match(r"^\*\*(概览|数据|本轮)：\*\*(.*)$", stripped)
+        match = re.match(r"^\*\*(概览|数据|本轮|最热话题)：\*\*(.*)$", stripped)
         if not match:
-            match = re.match(r"^(概览|数据|本轮)：(.*)$", stripped)
+            match = re.match(r"^(概览|数据|本轮|最热话题)：(.*)$", stripped)
         if not match:
             break
 
@@ -87,7 +110,9 @@ def _extract_discord_summary_fields(content: str) -> tuple:
         if len(value) > DISCORD_EMBED_FIELD_VALUE_LIMIT:
             value = value[: DISCORD_EMBED_FIELD_VALUE_LIMIT - 3].rstrip() + "..."
         display_name = f"{emoji_map.get(name, '')} {name}"
-        fields.append({"name": display_name, "value": value, "inline": True})
+        # 概览、数据、本轮内联排版成一行，最热话题独占整行
+        inline = name != "最热话题"
+        fields.append({"name": display_name, "value": value, "inline": inline})
         body_start = idx + 1
 
     while body_start < len(lines) and not lines[body_start].strip():
@@ -108,9 +133,26 @@ def _build_discord_payload(
     batch_index: int = 1,
     total_batches: int = 1,
 ) -> Dict[str, Any]:
-    """构建 Discord 原生 Webhook payload（优化卡片格式：emoji 字段名、footer、timestamp）"""
+    """构建 Discord 原生 Webhook payload（优化卡片格式：动态色彩、emoji 字段名、footer、timestamp）"""
     summary_fields, body = _extract_discord_summary_fields(batch_content)
     description = body.strip()
+
+    # 清除顶部冗余的 **[第 x/y 批次]**（卡片标题已有精确批目标记）
+    description = re.sub(r"^\*\*\[第 \d+/\d+ 批次\]\*\*\n*", "", description).strip()
+
+    # 清理正文中冗余的 "> 更新时间：..." 文本（卡片原生 timestamp 和 footer 已展示）
+    description = re.sub(r"\n*> 更新时间：[^\n]+", "", description).strip()
+
+    # 将版本提示转化为 Discord 原生 subtext
+    description = re.sub(
+        r"\n*> TrendRadar 发现新版本\s*([^\n]+)",
+        r"\n\n-# 🚀 TrendRadar 发现新版本 \1",
+        description,
+    ).strip()
+
+    # 规范化连续多余空行
+    description = re.sub(r"\n{3,}", "\n\n", description)
+
     if len(description) > DISCORD_EMBED_DESCRIPTION_LIMIT:
         description = (
             description[: DISCORD_EMBED_DESCRIPTION_LIMIT - 3].rstrip() + "..."
@@ -118,12 +160,14 @@ def _build_discord_payload(
 
     title = f"📡 {report_type}"
     if total_batches > 1:
-        title += f" (第 {batch_index}/{total_batches} 批)"
+        title += f" · 第 {batch_index}/{total_batches} 批"
+
+    color = _get_discord_embed_color(report_type, description)
 
     embed = {
         "title": title[:256],
         "description": description,
-        "color": 0x5865F2,
+        "color": color,
         "footer": {"text": "TrendRadar 热点雷达"},
         "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
     }
@@ -1364,12 +1408,20 @@ def send_to_generic_webhook(
         not payload_template or _is_discord_content_template(payload_template)
     )
 
-    # Discord rejects content over 2,000 characters.  The shared report
-    # splitter uses UTF-8 bytes, so cap Discord batches conservatively even
-    # when a legacy GENERIC_WEBHOOK_URL still supplies the endpoint.
-    effective_batch_size = (
-        min(batch_size, DISCORD_SAFE_BATCH_BYTES) if is_discord else batch_size
-    )
+    # 分批大小自适应：
+    # 当使用 Discord 原生 Embed 卡片时，单卡片 description 支持最多 4096 字符。
+    # 采用 DISCORD_EMBED_SAFE_BATCH_BYTES (3600 字节) 避免无意义的分批碎切与刷屏；
+    # 纯文本模式或非 Discord 平台则沿用原安全限制。
+    if is_discord and use_discord_embed:
+        effective_batch_size = (
+            DISCORD_EMBED_SAFE_BATCH_BYTES
+            if batch_size in (DISCORD_SAFE_BATCH_BYTES, 2000)
+            else min(batch_size, DISCORD_EMBED_SAFE_BATCH_BYTES)
+        )
+    elif is_discord:
+        effective_batch_size = min(batch_size, DISCORD_SAFE_BATCH_BYTES)
+    else:
+        effective_batch_size = batch_size
 
     # 渲染 AI 分析内容并提取统计数据
     ai_channel = "discord" if is_discord else "wework"
@@ -1432,19 +1484,31 @@ def send_to_generic_webhook(
                 webhook_url, headers=headers, json=payload, proxies=proxies, timeout=30
             )
 
-            # 如果 Discord Embed 遇到 4xx 错误，自动降级为 content 纯文本重试
+            # 如果 Discord Embed 遇到 4xx 错误，自动降级为 content 纯文本分片重试（零丢单）
             if response.status_code >= 400 and response.status_code < 500 and use_discord_embed:
                 print(
                     f"{log_prefix}第 {i}/{len(batches)} 批次 Embed 发送返回 {response.status_code}，正在自动降级为 content 纯文本重试..."
                 )
-                fallback_payload = {"content": batch_content[:1950]}
-                response = requests.post(
-                    webhook_url,
-                    headers=headers,
-                    json=fallback_payload,
-                    proxies=proxies,
-                    timeout=30,
-                )
+                chunk_size = 1900
+                fallback_chunks = [
+                    batch_content[k : k + chunk_size]
+                    for k in range(0, len(batch_content), chunk_size)
+                ]
+                fb_ok = True
+                last_fb_resp = response
+                for chunk in fallback_chunks:
+                    last_fb_resp = requests.post(
+                        webhook_url,
+                        headers=headers,
+                        json={"content": chunk},
+                        proxies=proxies,
+                        timeout=30,
+                    )
+                    if not (200 <= last_fb_resp.status_code < 300):
+                        fb_ok = False
+                        break
+                if fb_ok:
+                    response = last_fb_resp
             
             if response.status_code >= 200 and response.status_code < 300:
                 print(f"{log_prefix}第 {i}/{len(batches)} 批次发送成功 [{report_type}]")
