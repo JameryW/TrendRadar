@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import yaml
@@ -453,6 +454,8 @@ def test_discord_embed_dynamic_colors():
     assert _get_discord_embed_color("晚盘复盘") == 0x9B59B6
     assert _get_discord_embed_color("夜盘跟踪") == 0x9B59B6
     assert _get_discord_embed_color("深度分析周报") == 0xFEE75C
+    assert _get_discord_embed_color("增量分析报告") == 0x00D2D3
+    assert _get_discord_embed_color("RSS订阅报告") == 0xE67E22
     assert _get_discord_embed_color("当前榜单") == 0x5865F2
 
 
@@ -515,6 +518,8 @@ def test_discord_embed_thumbnail():
     assert "1f6a8.png" in _get_discord_embed_thumbnail("市场异动预警")
     assert "2728.png" in _get_discord_embed_thumbnail("AI深度研判")
     assert "2728.png" in _get_discord_embed_thumbnail("当前报告", "## ✨ AI 深度研判\n- 核心内容")
+    assert "1f195.png" in _get_discord_embed_thumbnail("增量分析模式")
+    assert "1f4f0.png" in _get_discord_embed_thumbnail("RSS订阅统计")
     assert "1f4c8.png" in _get_discord_embed_thumbnail("每日早报")
     assert "1f319.png" in _get_discord_embed_thumbnail("晚盘复盘")
     assert "1f4ca.png" in _get_discord_embed_thumbnail("深度分析周报")
@@ -529,15 +534,21 @@ def test_discord_embed_author_thumbnail_badges():
         "  1. [今日头条] [新能源车免征购置税延长](https://example.com) [1] - 10:30 (2次)\n"
         "  2. [华尔街见闻] [全球降息周期启动](https://example.com/ws) [2]"
     )
-    payload = _build_discord_payload("今日总结", raw_content, batch_index=1, total_batches=2)
-    assert payload["username"] == "TrendRadar"
-    embed = payload["embeds"][0]
-    assert embed["author"]["name"] == "TrendRadar · 实时舆情雷达"
-    assert "1f4c8.png" in embed["thumbnail"]["url"]  # 今日总结 -> 📈
-    assert "批次 1/2" in embed["footer"]["text"]
-    assert "`今日头条`" in embed["description"]
-    assert "`华尔街见闻`" in embed["description"]
-    assert len(embed["fields"]) == 2
+    os.environ["TRENDRADAR_WEB_URL"] = "http://localhost:8081"
+    try:
+        payload = _build_discord_payload("今日总结", raw_content, batch_index=1, total_batches=2)
+        assert payload["username"] == "TrendRadar"
+        embed = payload["embeds"][0]
+        assert embed["author"]["name"] == "TrendRadar · 实时舆情雷达"
+        assert embed["author"]["url"] == "http://localhost:8081"
+        assert embed["url"] == "http://localhost:8081"
+        assert "1f4c8.png" in embed["thumbnail"]["url"]  # 今日总结 -> 📈
+        assert "批次 1/2" in embed["footer"]["text"]
+        assert "`今日头条`" in embed["description"]
+        assert "`华尔街见闻`" in embed["description"]
+        assert len(embed["fields"]) == 2
+    finally:
+        os.environ.pop("TRENDRADAR_WEB_URL", None)
 
 
 def test_discord_embed_multi_batch_field_scoping():

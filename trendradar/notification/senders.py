@@ -67,6 +67,10 @@ def _get_discord_embed_color(report_type: str, content: str = "") -> int:
         return 0x9B59B6
     elif any(kw in rt_lower for kw in ["周报", "月报", "深度"]):
         return 0xFEE75C
+    elif any(kw in rt_lower for kw in ["增量", "新增"]):
+        return 0x00D2D3
+    elif any(kw in rt_lower for kw in ["rss", "订阅"]):
+        return 0xE67E22
     return 0x5865F2
 
 
@@ -83,6 +87,10 @@ def _get_discord_embed_thumbnail(report_type: str, content: str = "") -> str:
         return "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/1f4ca.png"  # 📊
     if any(kw in rt_lower for kw in ["ai", "深度", "研判", "智库"]) or "✨ AI 深度研判" in content_sample:
         return "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/2728.png"  # ✨
+    if any(kw in rt_lower for kw in ["增量", "新增"]):
+        return "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/1f195.png"  # 🆕
+    if any(kw in rt_lower for kw in ["rss", "订阅"]):
+        return "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/1f4f0.png"  # 📰
     if any(kw in rt_lower for kw in ["早报", "日报", "每日", "总结"]):
         return "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/1f4c8.png"  # 📈
     if any(kw in rt_lower for kw in ["晚报", "夜盘", "复盘"]):
@@ -202,8 +210,8 @@ def _build_discord_payload(
     # 清除顶部冗余的 **[第 x/y 批次]**（卡片标题已有精确批目标记）
     description = re.sub(r"^\*\*\[第 \d+/\d+ 批次\]\*\*\n*", "", description).strip()
 
-    # 清理正文中冗余的 "> 更新时间：..." 文本（卡片原生 timestamp 和 footer 已展示）
-    description = re.sub(r"\n*> 更新时间：[^\n]+", "", description).strip()
+    # 清理正文中冗余的更新时间文本（卡片原生 timestamp 和 footer 已展示）
+    description = re.sub(r"\n*>?\s*更新时间[：:][^\n]+", "", description).strip()
 
     # 将版本提示转化为 Discord 原生 subtext
     description = re.sub(
@@ -252,6 +260,10 @@ def _build_discord_payload(
     # 优化时间范围连接符与分隔符（将 " - HH:MM" 统一为优雅的 " · HH:MM"）
     description = re.sub(r"\s+-\s+(\d{2}:\d{2}(?:~\d{2}:\d{2})?)", r" · \1", description)
 
+    # 清理正文首尾遗留的独立分割线
+    description = re.sub(r"^(?:---\s*\n*)+", "", description).strip()
+    description = re.sub(r"(?:\n*---\s*)+$", "", description).strip()
+
     # 规范化连续多余空行
     description = re.sub(r"\n{3,}", "\n\n", description)
 
@@ -271,14 +283,15 @@ def _build_discord_payload(
     if total_batches > 1:
         footer_text += f" · 批次 {batch_index}/{total_batches}"
 
+    author: Dict[str, Any] = {
+        "name": "TrendRadar · 实时舆情雷达",
+        "icon_url": "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/1f4e1.png",
+    }
     embed: Dict[str, Any] = {
         "title": title[:256],
         "description": description,
         "color": color,
-        "author": {
-            "name": "TrendRadar · 实时舆情雷达",
-            "icon_url": "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/1f4e1.png",
-        },
+        "author": author,
         "thumbnail": {"url": thumbnail_url},
         "footer": {
             "text": footer_text,
@@ -290,6 +303,7 @@ def _build_discord_payload(
     web_url = os.getenv("TRENDRADAR_WEB_URL") or os.getenv("WEB_URL")
     if web_url:
         embed["url"] = web_url
+        author["url"] = web_url
 
     if summary_fields:
         # 当存在多个批次时，仅在第 1 批展示统计概览字段网格，后续批次专注于展示具体新闻正文，避免重复刷屏

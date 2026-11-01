@@ -1039,7 +1039,7 @@ async def get_channel_format_guide(channel: Optional[str] = None) -> str:
 
     Args:
         channel: 指定渠道 ID（可选），不指定返回所有渠道策略
-                 可选值: feishu, dingtalk, wework, telegram, email, ntfy, bark, slack, generic_webhook
+                 可选值: feishu, dingtalk, wework, telegram, email, ntfy, bark, slack, discord, generic_webhook
 
     Returns:
         JSON格式的渠道格式化策略，包含支持特性、限制和格式化提示词
@@ -1048,6 +1048,7 @@ async def get_channel_format_guide(channel: Optional[str] = None) -> str:
         - get_channel_format_guide()  # 获取所有渠道策略
         - get_channel_format_guide(channel="feishu")  # 获取飞书策略
         - get_channel_format_guide(channel="telegram")  # 获取 Telegram 策略
+        - get_channel_format_guide(channel="discord")   # 获取 Discord 策略
     """
     tools = _get_tools()
     result = await asyncio.to_thread(
@@ -1063,7 +1064,7 @@ async def get_notification_channels() -> str:
     获取所有已配置的通知渠道及其状态
 
     检测 config.yaml 和 .env 环境变量中的通知渠道配置。
-    支持 9 个渠道：飞书、钉钉、企业微信、Telegram、邮件、ntfy、Bark、Slack、通用 Webhook。
+    支持 10 个渠道：飞书、钉钉、企业微信、Telegram、邮件、ntfy、Bark、Slack、Discord、通用 Webhook。
 
     Returns:
         JSON格式的渠道状态，包含每个渠道是否已配置及配置来源
@@ -1094,7 +1095,7 @@ async def send_notification(
     - ntfy：Markdown（自动剥离 <font> 标签）
     - Bark：Markdown（自动简化为粗体+链接，适配 iOS 推送）
     - Slack：mrkdwn（自动转换 **→*、~~→~、[text](url)→<url|text>）
-    - Discord：Webhook content（自动按 2000 字符限制分批）
+    - Discord：Webhook Embed 仪表盘卡片（支持微缩图、author、footer、3列自适应网格、3600字节安全分批与自动无损分片降级重试）
     - 通用 Webhook：Markdown（支持自定义模板）
 
     提示：发送前可调用 get_channel_format_guide 获取目标渠道的详细格式化策略，
