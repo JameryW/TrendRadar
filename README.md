@@ -6,7 +6,7 @@
 
 最快<strong>30秒</strong>部署的热点助手 —— 告别无效刷屏，只看真正关心的新闻资讯
 
-<a href="https://trendradar.sandev.cc/zh/" title="TrendRadar 官方网站"><strong>🌐 官方网站</strong></a> · <a href="https://trendradar.sandev.cc/zh/docs/quick-start/" title="TrendRadar 官网文档"><strong>📖 官网文档</strong></a>
+<a href="https://trendradar.sandev.cc/zh/" title="TrendRadar 官方网站"><strong>🌐 官方网站</strong></a> · <a href="https://trendradar.sandev.cc/zh/docs/quick-start/" title="TrendRadar 官网文档"><strong>📖 官网文档</strong></a> · <a href="https://trendradar.sandev.cc/zh/docs/self-hosted-sources/" title="AI 自建热榜数据源"><strong>AI 自建热榜数据源</strong></a>
 
 <a href="https://trendshift.io/repositories/14726" target="_blank"><img src="https://trendshift.io/api/badge/repositories/14726" alt="sansan0%2FTrendRadar | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 
@@ -14,8 +14,8 @@
 [![GitHub Stars](https://img.shields.io/github/stars/sansan0/TrendRadar?style=flat-square&logo=github&color=yellow)](https://github.com/sansan0/TrendRadar/stargazers)
 [![GitHub Forks](https://img.shields.io/github/forks/sansan0/TrendRadar?style=flat-square&logo=github&color=blue)](https://github.com/sansan0/TrendRadar/network/members)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v6.10.0-blue.svg)](https://github.com/sansan0/TrendRadar)
-[![MCP](https://img.shields.io/badge/MCP-v4.1.0-green.svg)](https://github.com/sansan0/TrendRadar)
+[![Version](https://img.shields.io/badge/version-v6.11.0-blue.svg)](https://github.com/sansan0/TrendRadar)
+[![MCP](https://img.shields.io/badge/MCP-v4.1.1-green.svg)](https://github.com/sansan0/TrendRadar)
 [![Docker Pulls](https://img.shields.io/docker/pulls/wantcat/trendradar?style=flat-square&logo=docker&logoColor=white&label=TrendRadar%20Pulls&color=2496ED)](https://hub.docker.com/r/wantcat/trendradar)
 [![Docker Pulls](https://img.shields.io/docker/pulls/wantcat/trendradar-mcp?style=flat-square&logo=docker&logoColor=white&label=MCP%20Pulls&color=2496ED)](https://hub.docker.com/r/wantcat/trendradar-mcp)
 [![RSS](https://img.shields.io/badge/RSS-订阅源支持-orange.svg?style=flat-square&logo=rss&logoColor=white)](#rss-订阅源支持v450-新增)
@@ -190,32 +190,34 @@
 
 ## 🪄 赞助商
 
-<div align="center">
+> **[Swiftproxy](https://www.swiftproxy.net/?ref=sansan0)** 专注于提供高质量动态和静态住宅代理，拥有 **9000 万+住宅 IP**，覆盖全球 **220+ 个地区**，支持 **HTTP(S)、SOCKS5** 协议及灵活的 IP 轮换与粘性会话。适用于热点追踪、网页抓取与自动化数据采集，为你提供更稳定可靠的网络访问支持。
+>
+> 使用优惠码 **`PROXY90`**，即可享受 **九折优惠**。
 
-> 一站畅享 **字节跳动自研的豆包大模型** 与主流开源 SOTA 模型的 **满血版本**，全面覆盖文本、视觉理解（VLM）、图像生成等 **多模态能力**。Seed-2.1、Seedream 5.0、GLM-5.2、DeepSeek 等热门模型一站配齐，不止 **高效编程**，更能胜任 **复杂的长程 Agent 任务**。
+<!-- 赞助商横幅尺寸：1400 × 300 px（14:3），以 100% 宽度展示；参考 302.AI 的 992 × 250 px 与火山引擎的 1400 × 400 px，新版沿用 1400 px 宽度并缩短高度。 -->
+<a href="https://www.swiftproxy.net/?ref=sansan0"><img src="_image/banner-swiftproxy.webp" alt="Swiftproxy 全球住宅代理" width="100%"></a>
 
-<a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&amp;utm_content=hw&amp;utm_medium=devrel_tool_web&amp;utm_source=OWO&amp;utm_term=TrendRadar"><img src="_image/banner-volcengine-doubao-ai618.webp" alt="火山引擎豆包大模型 AI 普惠季" width="100%"></a>
-
-</div>
+[有意赞助？点击查看赞助与合作详情](https://trendradar.sandev.cc/zh/sponsors/)
 
 <br>
 
 <a name="-支持项目"></a>
 
-### ❤️ 觉得好用？支持一下
+### 🧩 作者的另一款工具：SanFrame
 
-> 若 TrendRadar 曾为你捕捉价值，不妨为它注入动力，助其持续进化
->
-> 金额随意，1 元也是对开源的鼓励。欢迎在赞赏时备注留言 (´▽`ʃ♡ƪ)
-
-<div align="center">
-
-| 微信赞赏 | 支付宝赞赏 |
-|:---:|:---:|
-| <img src="https://cdn-1258574687.cos.ap-shanghai.myqcloud.com/img/%2F2025%2F07%2F17%2F2ae0a88d98079f7e876c2b4dc85233c6-9e8025.JPG" width="240" alt="微信赞赏"> | <img src="https://cdn-1258574687.cos.ap-shanghai.myqcloud.com/img/%2F2025%2F07%2F17%2F1ed4f20ab8e35be51f8e84c94e6e239b4-fe4947.JPG" width="240" alt="支付宝赞赏"> |
-
-</div>
-
+<table role="presentation">
+<tr>
+<td width="96" align="center">
+<a href="https://ocr.sandev.cc/zh/"><img src="_image/sanframe-icon.webp" alt="SanFrame" width="72" height="72"></a>
+</td>
+<td align="left">
+<strong>多设备资料与剪贴板管理</strong><br>
+集中管理文字、图片与文件，支持搜索、标签、收藏、归档和轻量剪贴板管理。Windows / macOS 多设备之间可通过局域网互传与按需同步，方便资料整理和复用。内置离线 OCR，也可接入 GLM-OCR、HunyuanOCR 等专业识别大模型，并提供截图标注、PDF 处理等功能。无需账号，本地优先。
+<br><br>
+<a href="https://ocr.sandev.cc/zh/"><strong>了解 SanFrame →</strong></a>
+</td>
+</tr>
+</table>
 
 ### 🤝 二次开发与引用
 
@@ -228,7 +230,13 @@
 
 - **GitHub Issues**：适合具体的技术问题。提问时请提供完整信息（截图、错误日志等），有助于快速定位。
 - **公众号交流**：建议优先在相关文章下的留言区交流。若需后台提问，**先点赞/推荐**文章是最好的"敲门砖"，我在后台都能感受到这份心意哟 (´▽`ʃ♡ƪ)。
-- **QQ 群交流**：关注公众号，回复「**交流群**」即可加入。无论你是 AI 小白还是硬核开发者，想求助技术问题还是分享折腾心得，这里都欢迎你。群里主打互助交流和灵感碰撞，入群请先看群公告；提问时描述清楚问题、附上截图，群友有空就会帮忙，大家的实战经验往往比我一个人更快更全面 🤝
+- **QQ 群交流**：扫描下方二维码，或在 QQ 中搜索群号 **1007671021** 加入。无论你是 AI 小白还是硬核开发者，想求助技术问题还是分享折腾心得，这里都欢迎你。群里主打互助交流和灵感碰撞，入群请先看群公告；提问时描述清楚问题、附上截图，群友有空就会帮忙，大家的实战经验往往比我一个人更快更全面 🤝
+
+<div align="center">
+
+<img src="_image/qq-group.png" alt="TrendRadar QQ 群二维码，群号 1007671021" width="320">
+
+</div>
 
 > **友情提示**：
 > 本项目为开源分享，非商业产品。把作者当朋友而非客服，沟通效率会更高哦！
@@ -249,15 +257,15 @@
 - **提示**：建议查看【历史更新】，明确具体的【功能内容】
 
 
-### 2026/06/19 - v6.10.0
+### 2026/10/13 - v6.11.0
 
-- **AI 翻译分批处理**：大量标题翻译时自动分批请求，避免单次请求超限导致翻译失败
-- **模块拆分重构**：拆分 context.py 和 \_\_main\_\_.py，AI 筛选流水线独立为 filter_pipeline 模块，职责更清晰、维护更方便
-- **修复飞书来源标签显示**：修复飞书卡片中来源标签和 AI 独立源点速览被 CommonMark 吞掉不显示的问题
+- **中英文配置编辑**：可视化编辑器支持中英文切换，并提供英文配置模板，方便按熟悉的语言设置运行参数、关键词和调度规则
+- **更多部署选择**：可选配置 Cloudflare Pages 自动部署，抓取完成后自动发布网页报告；补充基于 `uv` 的本地部署说明，方便在本机运行
+- **抓取与配置稳定性**：RSS 临时请求失败时仅立即重试一次；修复时间解析中的小数秒与时区偏移、全局过滤正则和 AI 自定义参数传递，并避免远程存储检查失败时误建空库
 
 ### 2026/02/09 - mcp-v4.0.0
 
-- **🔥 AI 消息直推所有渠道**：让 AI 写好的内容一键推送到飞书、钉钉、Discord、Telegram、邮件等 10 个渠道，Markdown 自动适配各平台格式，不用操心格式差异
+- **🔥 AI 消息直推所有渠道**：让 AI 写好的内容一键推送到飞书、钉钉、Telegram、邮件等 9 个渠道，Markdown 自动适配各平台格式，不用操心格式差异
 - **新增格式化策略指南**：新增 `get_channel_format_guide` 工具，告诉 AI 每个渠道支持什么格式、有什么限制，生成的内容排版更好看
 - **智能分批发送**：超长消息自动按各渠道字节限制拆分（飞书 30KB、钉钉 20KB 等），配置读取自 config.yaml
 - **修复渠道误检测**：ntfy 不再因为默认地址被误报为"已配置"
@@ -266,6 +274,12 @@
 
 <details>
 <summary>👉 点击展开：<strong>历史更新</strong></summary>
+
+### 2026/06/19 - v6.10.0
+
+- **AI 翻译分批处理**：大量标题翻译时自动分批请求，避免单次请求超限导致翻译失败
+- **模块拆分重构**：拆分 context.py 和 \_\_main\_\_.py，AI 筛选流水线独立为 filter_pipeline 模块，职责更清晰、维护更方便
+- **修复飞书来源标签显示**：修复飞书卡片中来源标签和 AI 独立源点速览被 CommonMark 吞掉不显示的问题
 
 ### 2026/06/02 - v6.9.0
 
@@ -1024,6 +1038,8 @@ frequency_words.txt 文件增加了一个【必须词】功能，使用 + 号
 ### **可视化配置编辑器**
 
 提供基于 Web 的图形化配置界面，无需手动编辑 YAML 文件，通过表单即可完成所有配置项的修改与导出。
+
+支持中英文界面切换和英文配置模板，方便按熟悉的语言设置运行参数、关键词和调度规则。
 
 👉 **在线体验**：[https://sansan0.github.io/TrendRadar/](https://sansan0.github.io/TrendRadar/)
 
@@ -1883,10 +1899,8 @@ GitHub Pages 在国内访问较慢，[Cloudflare Pages](https://pages.cloudflare
    <summary>👉 点击展开：<strong>通用 Webhook 推送</strong>（支持 Discord、Matrix、IFTTT 等）</summary>
    <br>
 
-   Discord 请使用专用变量 `DISCORD_WEBHOOK_URL`；`GENERIC_WEBHOOK_URL` 保留给 Matrix、IFTTT 或其他非 Discord Webhook。旧配置中的 Discord 地址仍会自动识别并按 Discord 限制发送。
-
    **GitHub Secret 配置（⚠️ Name 名称必须严格一致）：**
-   - **Name（名称）**：`DISCORD_WEBHOOK_URL`（Discord 专用入口，请复制粘贴此名称，不要手打）
+   - **Name（名称）**：`GENERIC_WEBHOOK_URL`（请复制粘贴此名称，不要手打）
    - **Secret（值）**：你的 Webhook URL
 
    - **Name（名称）**：`GENERIC_WEBHOOK_TEMPLATE`（可选配置，请复制粘贴此名称）
@@ -1910,10 +1924,14 @@ GitHub Pages 在国内访问较慢，[Cloudflare Pages](https://pages.cloudflare
       - 进入 Discord 服务器设置 → 整合 → Webhooks
       - 创建新 Webhook，复制 URL
 
-   2. **GitHub Secret 配置**：
-      - `DISCORD_WEBHOOK_URL`：Discord Webhook URL
+   2. **配置模板**：
+      ```json
+      {"content": "{content}"}
+      ```
 
-   > Discord 每条消息最多 2000 个字符，TrendRadar 会按 1900 字节安全分批发送。
+   3. **GitHub Secret 配置**：
+      - `GENERIC_WEBHOOK_URL`：Discord Webhook URL
+      - `GENERIC_WEBHOOK_TEMPLATE`：`{"content": "{content}"}`
 
    ### 自定义模板
 
@@ -2861,12 +2879,6 @@ vim config/frequency_words.txt
 cd docker
 cp docker-compose-build.yml docker-compose.yml
 ```
-
-> 注意：`docker/docker-compose.yml` 使用官方远程镜像，不会包含本地代码修改。
-> 修改但尚未提交的源码请使用 `docker-compose-build.yml` 构建，并设置
-> `TRENDRADAR_BUILD_SHA=local-dirty`；不要把这个镜像用于正式恢复或发布。
-> 本仓库生产部署应使用仓库根目录的 `deploy/deploy-docker.sh`，它会从干净
-> checkout 构建并校验两个 TrendRadar 镜像。
 
 **构建并启动服务**：
 
@@ -3885,7 +3897,9 @@ MCP Inspector 是官方调试工具，用于测试 MCP 连接：
 - https://github.com/sansan0/bilibili-comment-analyzer
 
 
-[![Star History Chart](https://api.star-history.com/svg?repos=sansan0/TrendRadar&type=Date)](https://www.star-history.com/#sansan0/TrendRadar&Date)
+## Star History
+
+[![Star History Chart](https://star-history.dera.page/svg?repos=sansan0/TrendRadar)](https://star-history.dera.page/#sansan0/TrendRadar)
 
 <br>
 

@@ -144,7 +144,7 @@ class AIFilter:
             print(f"[AI筛选][DEBUG] === Prompt 结束 ===")
 
         try:
-            response = self.client.chat(messages)
+            response = self.client.chat(messages, purpose="filter_extract_tags")
 
             if self.debug:
                 print(f"\n[AI筛选][DEBUG] === 标签提取 AI 原始响应 ===")
@@ -221,7 +221,7 @@ class AIFilter:
             print(f"[AI筛选][DEBUG] === Prompt 结束 ===")
 
         try:
-            response = self.client.chat(messages)
+            response = self.client.chat(messages, purpose="filter_update_tags")
 
             if self.debug:
                 print(f"\n[AI筛选][DEBUG] === 标签更新 AI 原始响应 ===")
@@ -376,7 +376,7 @@ class AIFilter:
             print(f"[AI筛选][DEBUG] === Prompt 结束 (长度: {sum(len(m['content']) for m in messages)} 字符) ===")
 
         try:
-            response = self.client.chat(messages)
+            response = self.client.chat(messages, purpose="filter_classify")
 
             return self._parse_classify_response(response, titles, tags)
         except Exception as e:

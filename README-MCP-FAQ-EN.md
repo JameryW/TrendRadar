@@ -817,7 +817,7 @@ Users often use natural language like "this week", "last 7 days" to express date
 - "Push this content to Feishu"
 - "Send today's news summary to DingTalk and Telegram"
 
-**Supported notification channels (10):**
+**Supported notification channels (9):**
 
 | Channel | Message Format | Configuration |
 |---------|---------------|---------------|
@@ -829,7 +829,6 @@ Users often use natural language like "this week", "last 7 days" to express date
 | **ntfy** | Markdown | `NTFY_SERVER_URL` + `NTFY_TOPIC` |
 | **Bark** | Markdown | `BARK_URL` |
 | **Slack** | mrkdwn | `SLACK_WEBHOOK_URL` |
-| **Discord** | Markdown content | `DISCORD_WEBHOOK_URL` |
 | **Generic Webhook** | Markdown | `GENERIC_WEBHOOK_URL` |
 
 **Configuration methods:**

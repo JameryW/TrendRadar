@@ -378,7 +378,7 @@ class AIAnalyzer:
             messages.append({"role": "system", "content": self.system_prompt})
         messages.append({"role": "user", "content": user_prompt})
 
-        return self.client.chat(messages)
+        return self.client.chat(messages, purpose="analysis")
 
     def _retry_fix_json(self, original_response: str, error_msg: str) -> Optional[AIAnalysisResult]:
         """
@@ -417,7 +417,7 @@ class AIAnalyzer:
         ]
 
         try:
-            response = self.client.chat(messages)
+            response = self.client.chat(messages, purpose="repair_json")
             return self._parse_response(response)
         except Exception as e:
             print(f"[AI] 重试修复 JSON 异常: {type(e).__name__}: {e}")

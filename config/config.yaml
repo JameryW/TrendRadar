@@ -139,7 +139,8 @@ rss:
      
     - id: "yahoo-finance"
       name: "雅虎财经"
-      url: "https://finance.yahoo.com/news/rssindex"
+      # Official S&P 500, Nasdaq and Dow headlines feed.
+      url: "https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EGSPC,%5EIXIC,%5EDJI&region=US&lang=en-US"
 
     # 自定义源示例
     # - id: "custom-feed"
@@ -366,14 +367,14 @@ ai:
   # 完整列表: https://docs.litellm.ai/docs/providers
   # 如果你对于看英文文档比较头疼，那么可以点击页面右下角的 【Ask AI】 ,用中文询问怎么配置
 
-  model: "openai/mimo-v2.6-flash"
+  model: "openai/opencode-go/deepseek-v4.1-flash"
 
-  api_key: ""                       # API Key（建议使用环境变量 AI_API_KEY）
-                                    # 当前主模型走小米 Token Plan，容器内由
-                                    # AI_API_KEY=${XIAOMI_API_KEY} 注入（api_key 模式，Bearer 头）
+  api_key: ""                       # Inject MAGPIE_API_KEY via AI_API_KEY; never inline a credential.
+                                    # Magpie caller credential is injected by Compose
+                                    # through AI_API_KEY=${MAGPIE_API_KEY}; no inline token.
 
-  api_base: "https://token-plan-cn.xiaomimimo.com/v1"
-                                    # 主模型端点（小米 Token Plan，OpenAI 兼容）
+  api_base: "http://172.19.57.184:3425/v1"
+                                    # Magpie endpoint reachable from the container network.
                                     #
                                     # ❓ 什么时候需要填？
                                     #    当你使用的 AI 服务商不在上方支持列表中时。

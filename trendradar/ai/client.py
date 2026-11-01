@@ -6,10 +6,100 @@ AI 客户端模块
 支持 100+ AI 提供商（OpenAI、DeepSeek、Gemini、Claude、国内模型等）
 """
 
+import json
 import os
-from typing import Any, Dict, List
+import time
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from litellm import completion
+
+
+def default_usage_ledger() -> Path:
+    """用量台账路径：环境变量 ``AI_USAGE_LEDGER`` > 仓库 ``output/ai_usage.jsonl``。
+
+    容器内 ``/app/output`` 与宿主 ``trendradar/output`` 是同一个 bind mount
+    （output/.gitignore 忽略 ``*``），所以宿主侧的 ``llm-call-monitor.py``
+    不需要 ``podman exec`` 就能读到逐次用量。
+    """
+    env_path = os.environ.get("AI_USAGE_LEDGER")
+    if env_path:
+        return Path(env_path)
+    # __file__ = <root>/trendradar/trendradar/ai/client.py
+    # parents[2] = <root>/trendradar（容器内即 /app）
+    return Path(__file__).resolve().parents[2] / "output" / "ai_usage.jsonl"
+
+
+def _usage_value(usage: Any, *names: str) -> int:
+    """从 litellm 的 usage 对象（对象或 dict）里取第一个存在的字段"""
+    for name in names:
+        if isinstance(usage, dict):
+            value = usage.get(name)
+        else:
+            value = getattr(usage, name, None)
+        if value is not None:
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return 0
+    return 0
+
+
+def record_usage(
+    response: Any,
+    model: str,
+    purpose: Optional[str] = None,
+    duration: Optional[float] = None,
+    fallback: bool = False,
+    ledger: Optional[Path] = None,
+) -> Dict[str, Any]:
+    """把一次成功调用的 token 用量追加进 JSONL 台账，并打印一行日志。
+
+    任何异常都吞掉 —— 记账绝不能反过来打断真实调用。
+    """
+    usage = getattr(response, "usage", None)
+    in_tok = _usage_value(usage, "prompt_tokens", "input_tokens")
+    out_tok = _usage_value(usage, "completion_tokens", "output_tokens")
+    total = _usage_value(usage, "total_tokens") or (in_tok + out_tok)
+    details = None
+    if usage is not None:
+        details = (
+            usage.get("prompt_tokens_details")
+            if isinstance(usage, dict)
+            else getattr(usage, "prompt_tokens_details", None)
+        )
+    cached = _usage_value(details, "cached_tokens")
+    if not cached and usage is not None:
+        cached = _usage_value(usage, "cache_read_input_tokens", "cached_tokens")
+
+    row: Dict[str, Any] = {
+        "ts": time.time(),
+        "model": model,
+        "purpose": purpose or "",
+        "in": in_tok,
+        "out": out_tok,
+        "tot": total,
+        "cache": cached,
+        "dur": round(duration, 3) if duration is not None else None,
+        "fallback": bool(fallback),
+    }
+    print(
+        "[AI] 用量: in={:,} out={:,}{} ({}, {})".format(
+            in_tok,
+            out_tok,
+            " cache={:,}".format(cached) if cached else "",
+            model,
+            purpose or "未标注",
+        )
+    )
+    try:
+        path = Path(ledger) if ledger else default_usage_ledger()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+    except Exception as exc:  # noqa: BLE001 - 记账失败只告警不抛
+        print(f"[AI] 用量台账写入失败: {type(exc).__name__}: {exc}")
+    return row
 
 
 class AIClient:
@@ -53,6 +143,13 @@ class AIClient:
         self.timeout = config.get("TIMEOUT", 120)
         self.num_retries = config.get("NUM_RETRIES", 2)
         self.fallback_models = config.get("FALLBACK_MODELS", [])
+        self.extra_params = config.get("EXTRA_PARAMS") or {}
+        if not isinstance(self.extra_params, dict):
+            print(
+                f"[AI] 配置错误: ai.extra_params 应为字典，"
+                f"当前为 {type(self.extra_params).__name__}，已忽略"
+            )
+            self.extra_params = {}
 
     def chat(
         self,
@@ -69,7 +166,9 @@ class AIClient:
 
         Args:
             messages: 消息列表，格式: [{"role": "system/user/assistant", "content": "..."}]
-            **kwargs: 额外参数，会覆盖默认配置
+            **kwargs: 额外参数，会覆盖默认配置。其中 ``purpose`` 是调用用途标签
+                （analysis / translation / repair_json / filter_* …），只用于用量台账，
+                不会发给模型。
 
         Returns:
             str: AI 响应内容
@@ -77,7 +176,10 @@ class AIClient:
         Raises:
             Exception: 主模型与全部降级模型都失败时抛出（错误信息含各次尝试）
         """
+        purpose = kwargs.pop("purpose", None)
+        started = time.time()
         attempts: List[str] = [self.model]
+        used_model = self.model
         try:
             response = completion(
                 **self._build_params(self.model, self.api_key, self.auth_token,
@@ -102,6 +204,7 @@ class AIClient:
                     )
                     print(f"[AI] 主模型失败，降级到 {fallback_model} ...")
                     response = completion(**params)
+                    used_model = fallback_model
                     break
                 except Exception as fallback_error:
                     last_error = fallback_error
@@ -114,6 +217,14 @@ class AIClient:
                     )
                 ) from last_error
 
+        # 记账放在 _extract_content 之前：即使内容为空/结构异常，这次钱已经花了
+        record_usage(
+            response,
+            used_model,
+            purpose=purpose,
+            duration=time.time() - started,
+            fallback=used_model != self.model,
+        )
         return self._extract_content(response)
 
     # ------------------------------------------------------------------
@@ -156,8 +267,15 @@ class AIClient:
         if max_tokens and max_tokens > 0:
             params["max_tokens"] = max_tokens
 
-        # 合并其他额外参数
-        for key, value in kwargs.items():
+        # 添加 fallback 模型（如果配置了）
+        if self.fallback_models and model == self.model:
+            params["fallbacks"] = self.fallback_models
+
+        # 合并配置文件中的 extra_params（如自定义请求头 extra_headers），
+        # 再用调用方 kwargs 覆盖；两者均不覆盖上方已确定的核心参数，
+        # 因此未配置 extra_params 时行为与原先完全一致
+        extra_merged = self.extra_params if isinstance(self.extra_params, dict) else {}
+        for key, value in {**extra_merged, **kwargs}.items():
             if key not in params:
                 params[key] = value
         return params

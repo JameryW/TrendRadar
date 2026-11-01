@@ -140,7 +140,8 @@ rss:
 
     - id: "yahoo-finance"
       name: "Yahoo Finance"
-      url: "https://finance.yahoo.com/news/rssindex"
+      # Official S&P 500, Nasdaq and Dow headlines feed.
+      url: "https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5EGSPC,%5EIXIC,%5EDJI&region=US&lang=en-US"
 
     # Custom feed example
     # - id: "custom-feed"

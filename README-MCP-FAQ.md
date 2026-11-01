@@ -817,7 +817,7 @@
 - "把这段内容推送到飞书"
 - "发送今天的新闻摘要到钉钉和 Telegram"
 
-**支持的通知渠道（10 个）：**
+**支持的通知渠道（9 个）：**
 
 | 渠道 | 消息格式 | 配置来源 |
 |------|---------|---------|
@@ -829,7 +829,6 @@
 | **ntfy** | Markdown | `NTFY_SERVER_URL` + `NTFY_TOPIC` |
 | **Bark** | Markdown | `BARK_URL` |
 | **Slack** | mrkdwn | `SLACK_WEBHOOK_URL` |
-| **Discord** | Markdown content | `DISCORD_WEBHOOK_URL` |
 | **通用 Webhook** | Markdown | `GENERIC_WEBHOOK_URL` |
 
 **配置方式：**
@@ -894,3 +893,4 @@
 1. 查看最新："查询今天关于'iPhone'的新闻"
 2. 查找历史："查找上周与'iPhone'相关的历史新闻"
 3. 找相似报道："找出和'iPhone 发布会'相似的新闻"
+

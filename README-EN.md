@@ -6,15 +6,15 @@
 
 Deploy in <strong>30 seconds</strong> — Say goodbye to endless scrolling, only see the news you truly care about
 
-<a href="https://trendradar.sandev.cc/en/" title="TrendRadar Official Website"><strong>🌐 Official Website</strong></a> · <a href="https://trendradar.sandev.cc/en/docs/quick-start/" title="TrendRadar Docs"><strong>📖 Documentation</strong></a>
+<a href="https://trendradar.sandev.cc/en/" title="TrendRadar Official Website"><strong>🌐 Official Website</strong></a> · <a href="https://trendradar.sandev.cc/en/docs/quick-start/" title="TrendRadar Docs"><strong>📖 Documentation</strong></a> · <a href="https://trendradar.sandev.cc/en/docs/self-hosted-sources/" title="Self-hosted news sources with AI"><strong>AI Self-Hosted Sources</strong></a>
 
 <a href="https://trendshift.io/repositories/14726" target="_blank"><img src="https://trendshift.io/api/badge/repositories/14726" alt="sansan0%2FTrendRadar | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 
 [![GitHub Stars](https://img.shields.io/github/stars/sansan0/TrendRadar?style=flat-square&logo=github&color=yellow)](https://github.com/sansan0/TrendRadar/stargazers)
 [![GitHub Forks](https://img.shields.io/github/forks/sansan0/TrendRadar?style=flat-square&logo=github&color=blue)](https://github.com/sansan0/TrendRadar/network/members)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v6.10.0-blue.svg)](https://github.com/sansan0/TrendRadar)
-[![MCP](https://img.shields.io/badge/MCP-v4.1.0-green.svg)](https://github.com/sansan0/TrendRadar)
+[![Version](https://img.shields.io/badge/version-v6.11.0-blue.svg)](https://github.com/sansan0/TrendRadar)
+[![MCP](https://img.shields.io/badge/MCP-v4.1.1-green.svg)](https://github.com/sansan0/TrendRadar)
 [![Docker Pulls](https://img.shields.io/docker/pulls/wantcat/trendradar?style=flat-square&logo=docker&logoColor=white&label=TrendRadar%20Pulls&color=2496ED)](https://hub.docker.com/r/wantcat/trendradar)
 [![Docker Pulls](https://img.shields.io/docker/pulls/wantcat/trendradar-mcp?style=flat-square&logo=docker&logoColor=white&label=MCP%20Pulls&color=2496ED)](https://hub.docker.com/r/wantcat/trendradar-mcp)
 [![RSS](https://img.shields.io/badge/RSS-Feed_Support-orange.svg?style=flat-square&logo=rss&logoColor=white)](#rss-feed-support-v450-new)
@@ -142,32 +142,34 @@ After communication, the author indicated no concerns about server pressure, but
 
 ## 🪄 Sponsors
 
-<div align="center">
+> **[Swiftproxy](https://www.swiftproxy.net/?ref=sansan0)** provides high-quality rotating and static residential proxies, with **90 million+ residential IPs** across **220+ locations worldwide**. It supports **HTTP(S) and SOCKS5**, flexible IP rotation, and sticky sessions, offering reliable network access for trend tracking, web scraping, and automated data collection.
+>
+> Use code **`PROXY90`** to get **10% off**.
 
-> Access **ByteDance's in-house Doubao models** alongside **full-strength versions** of leading open-source SOTA models, with comprehensive support for text, visual understanding (VLM), image generation, and other **multimodal capabilities**. Seed-2.1, Seedream 5.0, GLM-5.2, DeepSeek, and more are all available in one place—not only for **efficient coding**, but also for **complex, long-horizon Agent tasks**.
+<!-- Sponsor banner: 1400 × 300 px (14:3), displayed at 100% width; references: 302.AI at 992 × 250 px and Volcengine at 1400 × 400 px. The new banner retains the 1400 px width with a reduced height. -->
+<a href="https://www.swiftproxy.net/?ref=sansan0"><img src="_image/banner-swiftproxy.webp" alt="Swiftproxy global residential proxies" width="100%"></a>
 
-<a href="https://www.volcengine.com/activity/ai618?utm_campaign=hw&amp;utm_content=hw&amp;utm_medium=devrel_tool_web&amp;utm_source=OWO&amp;utm_term=TrendRadar"><img src="_image/banner-volcengine-doubao-ai618.webp" alt="Volcengine Doubao AI Special Offer" width="100%"></a>
-
-</div>
+[Interested in sponsoring? View sponsorship and partnership details](https://trendradar.sandev.cc/en/sponsors/)
 
 <br>
 
 <a name="-support-project"></a>
 
-### ❤️ Find it useful? Support TrendRadar
+### 🧩 Another tool by the author: SanFrame
 
-> If TrendRadar has captured value for you, give it some fuel to keep evolving
->
-> Any amount is welcome; even 1 RMB is a gesture of encouragement for open source. Feel free to leave a note with your donation (´▽`ʃ♡ƪ)
-
-<div align="center">
-
-| WeChat Pay | Alipay |
-| --- | --- |
-| <img src="https://cdn-1258574687.cos.ap-shanghai.myqcloud.com/img/%2F2025%2F07%2F17%2F2ae0a88d98079f7e876c2b4dc85233c6-9e8025.JPG" width="240" alt="WeChat Pay"> | <img src="https://cdn-1258574687.cos.ap-shanghai.myqcloud.com/img/%2F2025%2F07%2F17%2F1ed4f20ab8e35be51f8e84c94e6e239b4-fe4947.JPG" width="240" alt="Alipay"> |
-
-</div>
-
+<table role="presentation">
+<tr>
+<td width="96" align="center">
+<a href="https://ocr.sandev.cc/en/"><img src="_image/sanframe-icon.webp" alt="SanFrame" width="72" height="72"></a>
+</td>
+<td align="left">
+<strong>Multi-device content and clipboard management</strong><br>
+Manage text, images, and files in one place with search, tags, favorites, archiving, and lightweight clipboard management. Transfer and sync content as needed across Windows and macOS devices over your local network, making it easier to organize and reuse. Includes offline OCR, with support for specialist recognition models such as GLM-OCR and HunyuanOCR, plus screenshot annotation and PDF processing. No account required. Local-first.
+<br><br>
+<a href="https://ocr.sandev.cc/en/"><strong>Explore SanFrame →</strong></a>
+</td>
+</tr>
+</table>
 
 ### 🤝 Attribution & Secondary Development
 
@@ -180,7 +182,13 @@ This contributes to the sustainable maintenance of the project and the growth of
 
 * **GitHub Issues**: Best for specific technical issues. Please provide complete information (screenshots, error logs, etc.) to help locate the problem quickly.
 * **WeChat Official Account**: It is recommended to leave comments under relevant articles. If you need to ask questions in the background, **liking/recommending** the article first is the best "icebreaker," and I can feel your appreciation (´▽`ʃ♡ƪ).
-* **QQ Group**: Follow the WeChat Official Account and reply "**交流群**" to join. Whether you're an AI beginner or a seasoned developer, looking for help or sharing ideas, you're welcome here. The group is all about mutual help and brainstorming — please read the group announcement first; describe your issue clearly with screenshots, and fellow members will help when available. Community wisdom is often faster and more comprehensive than any single person 🤝
+* **QQ Group**: Scan the QR code below or search for group **1007671021** in QQ to join. Whether you're an AI beginner or a seasoned developer, looking for help or sharing ideas, you're welcome here. The group is all about mutual help and brainstorming — please read the group announcement first; describe your issue clearly with screenshots, and fellow members will help when available. Community wisdom is often faster and more comprehensive than any single person 🤝
+
+<div align="center">
+
+<img src="_image/qq-group.png" alt="TrendRadar QQ group QR code, group number 1007671021" width="320">
+
+</div>
 
 > **Friendly Reminder**:
 > This project is for open-source sharing, not a commercial product. Treat the author as a friend, not customer service, for better communication efficiency!
@@ -201,15 +209,15 @@ This contributes to the sustainable maintenance of the project and the growth of
 - **Tip**: Check [Changelog] to understand specific [Features]
 
 
-### 2026/06/19 - v6.10.0
+### 2026/10/13 - v6.11.0
 
-- **AI Translation Batch Processing**: Automatically splits large translation requests into batches, preventing single-request overflow failures
-- **Module Refactoring**: Split context.py and \_\_main\_\_.py, extracted AI filter pipeline into a standalone module for clearer responsibilities and easier maintenance
-- **Fixed Feishu Source Label Display**: Fixed source labels and AI standalone source overview being swallowed by CommonMark rendering in Feishu cards
+- **Chinese and English Configuration Editing**: Switch the visual editor between Chinese and English and use English configuration templates to set application options, keywords, and schedules in your preferred language
+- **More Deployment Options**: Optionally deploy web reports to Cloudflare Pages automatically after crawling; added local deployment instructions using `uv` for running on your own computer
+- **Crawling and Configuration Reliability**: Retry temporary RSS request failures just once, immediately; fix fractional seconds and timezone offsets in timestamp parsing, regex matching in global filters, and custom AI parameter forwarding; avoid creating an empty database when a remote storage existence check fails
 
 ### 2026/02/09 - mcp-v4.0.0
 
-- **🔥 Push any AI message to all channels**: Send AI-generated content to Feishu, DingTalk, Discord, Telegram, Email and all 10 channels with one call — Markdown auto-adapts to each platform's native format
+- **🔥 Push any AI message to all channels**: Send AI-generated content to Feishu, DingTalk, Telegram, Email and all 9 channels with one call — Markdown auto-adapts to each platform's native format
 - **New format guide tool**: `get_channel_format_guide` tells AI what each channel supports and its limitations, so generated content looks great everywhere
 - **Smart batch splitting**: Long messages auto-split per channel byte limits (Feishu 30KB, DingTalk 20KB, etc.), reads config from config.yaml
 - **Fixed channel detection**: ntfy no longer falsely reported as "configured" due to default server URL
@@ -218,6 +226,12 @@ This contributes to the sustainable maintenance of the project and the growth of
 
 <details>
 <summary>👉 Click to expand: <strong>Historical Updates</strong></summary>
+
+### 2026/06/19 - v6.10.0
+
+- **AI Translation Batch Processing**: Automatically splits large translation requests into batches, preventing single-request overflow failures
+- **Module Refactoring**: Split context.py and \_\_main\_\_.py, extracted AI filter pipeline into a standalone module for clearer responsibilities and easier maintenance
+- **Fixed Feishu Source Label Display**: Fixed source labels and AI standalone source overview being swallowed by CommonMark rendering in Feishu cards
 
 ### 2026/06/02 - v6.9.0
 
@@ -968,6 +982,8 @@ Supports RSS/Atom feed crawling, keyword-based grouping and statistics (consiste
 ### **Visual Configuration Editor**
 
 A web-based graphical configuration interface — no need to manually edit YAML files. Complete all configuration changes and exports through simple forms.
+
+Switch between Chinese and English and use English configuration templates to set application options, keywords, and schedules in your preferred language.
 
 👉 **Try it online**: [https://sansan0.github.io/TrendRadar/](https://sansan0.github.io/TrendRadar/)
 
@@ -1829,10 +1845,8 @@ Slack is a team collaboration tool, Incoming Webhooks can push messages to Slack
 <summary>👉 Click to expand: <strong>Generic Webhook Push</strong> (Supports Discord, Matrix, IFTTT, etc.)</summary>
 <br>
 
-Use the dedicated `DISCORD_WEBHOOK_URL` for Discord. Keep `GENERIC_WEBHOOK_URL` for Matrix, IFTTT, or other non-Discord webhook endpoints. Legacy Discord URLs in the generic setting are still detected and sent with Discord's limits.
-
 **GitHub Secret Configuration (⚠️ Name must be exact):**
-- **Name**: `DISCORD_WEBHOOK_URL` (Discord-specific entry point; copy and paste this name)
+- **Name**: `GENERIC_WEBHOOK_URL` (copy and paste this name, don't type manually)
 - **Secret**: Your Webhook URL
 
 - **Name**: `GENERIC_WEBHOOK_TEMPLATE` (optional, copy and paste this name)
@@ -1856,10 +1870,14 @@ Generic Webhook supports any platform that accepts HTTP POST requests, including
    - Go to Discord Server Settings → Integrations → Webhooks
    - Create new Webhook, copy URL
 
-2. **GitHub Secret Configuration**:
-   - `DISCORD_WEBHOOK_URL`: Discord Webhook URL
+2. **Configure Template**:
+   ```json
+   {"content": "{content}"}
+   ```
 
-   > Discord allows at most 2,000 characters per message; TrendRadar safely batches Discord content at 1,900 UTF-8 bytes.
+3. **GitHub Secret Configuration**:
+   - `GENERIC_WEBHOOK_URL`: Discord Webhook URL
+   - `GENERIC_WEBHOOK_TEMPLATE`: `{"content": "{content}"}`
 
 ### Custom Templates
 
@@ -2810,13 +2828,6 @@ vim config/frequency_words.txt
 cd docker
 cp docker-compose-build.yml docker-compose.yml
 ```
-
-> Note: `docker/docker-compose.yml` uses official remote images and does not
-> include local source changes. For uncommitted source changes, use
-> `docker-compose-build.yml` with `TRENDRADAR_BUILD_SHA=local-dirty`; do not use
-> that image for formal recovery or release. Production deployment in this
-> repository should use the repository-root `deploy/deploy-docker.sh`, which
-> builds from a clean checkout and verifies both TrendRadar images.
 
 **Build and Start Services**:
 
@@ -3884,7 +3895,9 @@ Any client supporting Model Context Protocol can connect to TrendRadar:
 - https://github.com/sansan0/bilibili-comment-analyzer
 
 
-[![Star History Chart](https://api.star-history.com/svg?repos=sansan0/TrendRadar&type=Date)](https://www.star-history.com/#sansan0/TrendRadar&Date)
+## Star History
+
+[![Star History Chart](https://star-history.dera.page/svg?repos=sansan0/TrendRadar)](https://star-history.dera.page/#sansan0/TrendRadar)
 
 <br>
 
