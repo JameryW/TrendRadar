@@ -212,6 +212,22 @@ def _build_discord_payload(
         flags=re.MULTILINE,
     )
 
+    # 优化正文中的板块标题为 H2 标题（如 📊 热点新闻统计, 🆕 新增新闻, 📡 RSS 深度洞察, 🌐 独立展示区）
+    description = re.sub(
+        r"^(📊|🆕|📡|🌐)\s*\*\*([^\n]+)\*\*",
+        r"## \1 \2",
+        description,
+        flags=re.MULTILINE,
+    )
+
+    # 优化热点新闻中的词组标题为 H3 标题并美化（如 ### 🔥 [1/15] **新能源** · 12条）
+    description = re.sub(
+        r"^(🔥|📈|📌)\s*(\[\d+/\d+\])\s*\*\*([^\n*]+)\*\*\s*:\s*(?:\*\*|\*)?(\d+)(?:\*\*|\*)?\s*条",
+        r"### \1 \2 **\3** · \4条",
+        description,
+        flags=re.MULTILINE,
+    )
+
     # 规范化连续多余空行
     description = re.sub(r"\n{3,}", "\n\n", description)
 

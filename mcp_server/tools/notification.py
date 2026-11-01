@@ -472,23 +472,31 @@ CHANNEL_FORMAT_GUIDES = {
     },
     "discord": {
         "name": "Discord",
-        "format": "Webhook Embed 卡片（Markdown 描述，带标题与摘要字段）",
-        "max_length": "Embed 描述支持最多 4096 字符（安全分批 1900 字节）",
-        "supported": ["标准 Markdown 语法", "Embed 颜色与卡片展示", "顶部概览/数据/本轮自动转为内联字段", "支持 ## 二级标题"],
+        "format": "Webhook Embed 仪表盘卡片（Markdown 描述，微缩图、author、footer 与指标网格）",
+        "max_length": "Embed 描述支持最多 4096 字符（安全分批 3600 字节）",
+        "supported": [
+            "标准 Markdown 语法",
+            "Embed 动态品类色彩与微缩图",
+            "指标行自动 3 列网格排版（总新闻/热榜/RSS/AI分析/类型/概览/数据/本轮/最热话题）",
+            "板块二级标题 ## 与话题三级标题 ###",
+            "来源行内代码徽章 `来源`",
+            "-# Discord 原生子文本",
+            "HTTP 4xx 自动无损分片降级重试",
+        ],
         "unsupported": ["复杂 HTML 标签"],
         "prompt": (
             "Discord Webhook 格式化策略：\n"
             "1. 使用标准 Markdown 格式\n"
-            "2. 顶部概览行推荐使用 '**概览：**'、'**数据：**'、'**本轮：**'，将自动提取为卡片内联字段\n"
-            "3. AI 分析板块使用 '## ✨ AI 深度研判' 及 '**emoji 标题**' 提升视觉层级\n"
-            "4. 单批次 Embed 描述限制 4096 字符，若发送受阻将自动降级为 content 纯文本重试"
+            "2. 顶部指标行推荐使用 '**总新闻：**'、'**概览：**'、'**热榜：**'、'**最热话题：**'，将自动提取为卡片自适应网格字段\n"
+            "3. 使用 '## ' 与 '### ' 组织板块与话题层级，新闻条目首项来源如 '[今日头条]' 会自动转为行内徽章 `今日头条`\n"
+            "4. 单批次推荐 3600 字节以内，Embed 描述上限 4096 字符，若发送受阻将自动无损分片降级重试"
         ),
     },
     "generic_webhook": {
         "name": "通用 Webhook",
-        "format": "Markdown（或自定义模板；Discord URL 自动使用 Embed）",
+        "format": "Markdown（或自定义模板；Discord URL 自动使用 Embed 仪表盘卡片）",
         "max_length": "通用约 4000 字节；Discord Embed 描述约 4096 字符",
-        "supported": ["标准 Markdown 语法"],
+        "supported": ["标准 Markdown 语法", "Discord Webhook 自动适配 Embed 卡片"],
         "unsupported": ["取决于接收端"],
         "prompt": (
             "通用 Webhook 格式化策略：\n"

@@ -158,7 +158,7 @@ def render_ai_analysis_discord(result: AIAnalysisResult) -> str:
 
     def _add_section(emoji: str, title: str, content: str):
         if content:
-            lines.extend([f"**{emoji} {title}**", _format_list_content(content), ""])
+            lines.extend([f"### {emoji} {title}", _format_list_content(content), ""])
 
     _add_section("🎯", "核心态势", result.core_trends)
     market_regions = getattr(result, "market_regions", "")
@@ -172,7 +172,7 @@ def render_ai_analysis_discord(result: AIAnalysisResult) -> str:
     if result.standalone_summaries:
         summaries_text = _format_standalone_summaries(result.standalone_summaries)
         if summaries_text:
-            lines.extend(["**🌐 独立速览**", summaries_text])
+            lines.extend(["### 🌐 独立速览", summaries_text])
 
     return "\n".join(lines).strip()
 

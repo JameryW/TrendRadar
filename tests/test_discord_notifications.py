@@ -474,13 +474,13 @@ def test_render_ai_analysis_discord():
     rendered = render_ai_analysis_discord(res)
     assert "## ✨ AI 深度研判" in rendered
     assert "-# 📊 深度研判 45 条焦点热点（热榜 35 ｜ RSS 10）" in rendered
-    assert "**🎯 核心态势**" in rendered
-    assert "**🌏 地域/市场**" in rendered
-    assert "**💬 舆论分歧**" in rendered
-    assert "**📡 异动信号**" in rendered
-    assert "**🧠 专业视角**" in rendered
-    assert "**💡 研判策略**" in rendered
-    assert "**🌐 独立速览**" in rendered
+    assert "### 🎯 核心态势" in rendered
+    assert "### 🌏 地域/市场" in rendered
+    assert "### 💬 舆论分歧" in rendered
+    assert "### 📡 异动信号" in rendered
+    assert "### 🧠 专业视角" in rendered
+    assert "### 💡 研判策略" in rendered
+    assert "### 🌐 独立速览" in rendered
 
 
 def test_get_ai_analysis_renderer_discord():
@@ -551,4 +551,35 @@ def test_discord_embed_multi_batch_field_scoping():
     # 第 2 批去除了冗余的 fields 展示，但正文中的 header 依然被干净移除
     assert "fields" not in payload2["embeds"][0]
     assert payload2["embeds"][0]["description"] == "正文第二批"
+
+
+def test_discord_embed_heading_and_topic_beautification():
+    raw_content = (
+        "**概览：** 5个平台\n"
+        "**数据：** 20条\n"
+        "---\n"
+        "📊 **热点新闻统计** (共 20 条)\n"
+        "\n"
+        "🔥 [1/5] **低空经济** : **8** 条\n"
+        "\n"
+        "  1. [今日头条] [eVTOL适航取证提速](https://example.com/1)\n"
+        "\n"
+        "📈 [2/5] **光伏储能** : 5 条\n"
+        "\n"
+        "  1. [财联社] [光伏产业链价格反弹](https://example.com/2)\n"
+        "\n"
+        "🆕 **新增热点** (共 1 条)\n"
+        "\n"
+        "  1. [百度热搜] [新型固态电池研发成功](https://example.com/3)"
+    )
+    payload = _build_discord_payload("当前榜单", raw_content, batch_index=1, total_batches=1)
+    desc = payload["embeds"][0]["description"]
+    assert "## 📊 热点新闻统计 (共 20 条)" in desc
+    assert "### 🔥 [1/5] **低空经济** · 8条" in desc
+    assert "### 📈 [2/5] **光伏储能** · 5条" in desc
+    assert "## 🆕 新增热点 (共 1 条)" in desc
+    assert "`今日头条`" in desc
+    assert "`财联社`" in desc
+    assert "`百度热搜`" in desc
+
 
