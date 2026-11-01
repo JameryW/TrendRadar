@@ -151,9 +151,18 @@ def render_ai_analysis_discord(result: AIAnalysisResult) -> str:
 
     analyzed_count = getattr(result, "analyzed_news", 0)
     if analyzed_count > 0:
+        parts = []
         hotlist_c = getattr(result, "hotlist_analyzed", 0)
         rss_c = getattr(result, "rss_analyzed", 0)
-        lines.append(f"-# 📊 深度研判 {analyzed_count} 条焦点热点（热榜 {hotlist_c} ｜ RSS {rss_c}）")
+        standalone_c = getattr(result, "standalone_analyzed", 0)
+        if hotlist_c > 0:
+            parts.append(f"热榜 {hotlist_c}")
+        if rss_c > 0:
+            parts.append(f"RSS {rss_c}")
+        if standalone_c > 0:
+            parts.append(f"独立源 {standalone_c}")
+        breakdown = f"（{' ｜ '.join(parts)}）" if parts else ""
+        lines.append(f"-# 📊 深度研判 {analyzed_count} 条焦点热点{breakdown}")
     lines.append("")
 
     def _add_section(emoji: str, title: str, content: str):

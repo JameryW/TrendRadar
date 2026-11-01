@@ -557,29 +557,62 @@ def test_discord_embed_heading_and_topic_beautification():
     raw_content = (
         "**概览：** 5个平台\n"
         "**数据：** 20条\n"
+        "**新增：** 5条\n"
         "---\n"
         "📊 **热点新闻统计** (共 20 条)\n"
         "\n"
         "🔥 [1/5] **低空经济** : **8** 条\n"
         "\n"
-        "  1. [今日头条] [eVTOL适航取证提速](https://example.com/1)\n"
+        "  1. [今日头条] [eVTOL适航取证提速](https://example.com/1) **[1]** - 21:26 (2次)\n"
+        "  2. [财联社] [低空经济发展提速](https://example.com/2) **[2]** - 21:26\n"
+        "  3. [华尔街见闻] [eVTOL产业链调研](https://example.com/3) **[3]** - 21:26\n"
+        "  4. [澎湃新闻] [行业大会即将召开](https://example.com/4) **[4]** - 21:26\n"
         "\n"
-        "📈 [2/5] **光伏储能** : 5 条\n"
+        "📰 **RSS 订阅统计** (共 2 条)\n"
         "\n"
-        "  1. [财联社] [光伏产业链价格反弹](https://example.com/2)\n"
+        "📌 [1/2] **AI 技术** : 2 条\n"
+        "\n"
+        "  1. [Hacker News] [Show HN: FastMCP](https://example.com/hn1) - 21:26\n"
         "\n"
         "🆕 **新增热点** (共 1 条)\n"
         "\n"
-        "  1. [百度热搜] [新型固态电池研发成功](https://example.com/3)"
+        "**今日头条** (1 条):\n"
+        "\n"
+        "  1. [百度热搜] [新型固态电池研发成功](https://example.com/5)\n"
+        "\n"
+        "📋 **独立展示区** (共 1 条)\n"
+        "\n"
+        "**华尔街见闻** (1 条):\n"
+        "\n"
+        "  1. [美股全线收高](https://example.com/6)\n"
+        "\n"
+        "⚠️ **数据获取失败的平台：**\n"
+        "  • 腾讯新闻"
     )
     payload = _build_discord_payload("当前榜单", raw_content, batch_index=1, total_batches=1)
     desc = payload["embeds"][0]["description"]
     assert "## 📊 热点新闻统计 (共 20 条)" in desc
     assert "### 🔥 [1/5] **低空经济** · 8条" in desc
-    assert "### 📈 [2/5] **光伏储能** · 5条" in desc
+    assert "🥇 **[1]**" in desc
+    assert "🥈 **[2]**" in desc
+    assert "🥉 **[3]**" in desc
+    assert "**[4]**" in desc
+    assert " · 21:26" in desc
+    assert "## 📰 RSS 订阅统计 (共 2 条)" in desc
+    assert "### 📌 [1/2] **AI 技术** · 2条" in desc
     assert "## 🆕 新增热点 (共 1 条)" in desc
+    assert "### 📌 **今日头条** · 1条" in desc
+    assert "## 📋 独立展示区 (共 1 条)" in desc
+    assert "### 📌 **华尔街见闻** · 1条" in desc
+    assert "## ⚠️ 数据获取失败的平台" in desc
     assert "`今日头条`" in desc
     assert "`财联社`" in desc
-    assert "`百度热搜`" in desc
+    assert "`华尔街见闻`" in desc
+
+    fields = payload["embeds"][0]["fields"]
+    field_names = [f["name"] for f in fields]
+    assert "📋 概览" in field_names
+    assert "📊 数据" in field_names
+    assert "🆕 新增" in field_names
 
 

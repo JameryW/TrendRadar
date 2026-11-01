@@ -123,6 +123,10 @@ def _extract_discord_summary_fields(content: str) -> tuple:
         "类型",
         "时间",
         "最热话题",
+        "新增",
+        "来源",
+        "状态",
+        "耗时",
     }
     emoji_map = {
         "概览": "📋",
@@ -136,9 +140,13 @@ def _extract_discord_summary_fields(content: str) -> tuple:
         "类型": "🏷️",
         "时间": "🕐",
         "最热话题": "🔥",
+        "新增": "🆕",
+        "来源": "🌐",
+        "状态": "⚡",
+        "耗时": "⏱️",
     }
     pattern = (
-        r"^(\*\*)?(概览|数据|本轮|总新闻|热榜|RSS|独立展示|AI 分析|类型|时间|最热话题)：(\*\*)?(.*)$"
+        r"^(\*\*)?(概览|数据|本轮|总新闻|热榜|RSS|独立展示|AI 分析|类型|时间|最热话题|新增|来源|状态|耗时)[：:]\s*(\*\*)?(.*)$"
     )
 
     for idx, line in enumerate(lines[:12]):
@@ -212,9 +220,9 @@ def _build_discord_payload(
         flags=re.MULTILINE,
     )
 
-    # 优化正文中的板块标题为 H2 标题（如 📊 热点新闻统计, 🆕 新增新闻, 📡 RSS 深度洞察, 🌐 独立展示区）
+    # 优化正文中的板块标题为 H2 标题（如 📊 热点新闻统计, 🆕 新增新闻, 📡 RSS 深度洞察, 🌐 独立展示区, 📰 RSS 订阅统计, 📋 独立展示区, ⚠️ 数据获取失败）
     description = re.sub(
-        r"^(📊|🆕|📡|🌐)\s*\*\*([^\n]+)\*\*",
+        r"^(📊|🆕|📡|🌐|📰|📋|⚠️)\s*\*\*([^\n*]+?)(?:[:：])?\*\*[:：]?",
         r"## \1 \2",
         description,
         flags=re.MULTILINE,
@@ -227,6 +235,22 @@ def _build_discord_payload(
         description,
         flags=re.MULTILINE,
     )
+
+    # 优化新增热点/独立展示区中的来源与平台分组标题为 H3 标题（如 ### 📌 **今日头条** · 3条）
+    description = re.sub(
+        r"^\*\*([^\n*]+)\*\*\s*\((?:\*\*|\*)?(\d+)(?:\*\*|\*)?\s*条\):?",
+        r"### 📌 **\1** · \2条",
+        description,
+        flags=re.MULTILINE,
+    )
+
+    # 优化前三名热榜排名视觉展示（添加金银铜奖牌标示）
+    description = re.sub(r"(\]\([^\)]+\)\s*)\*\*\[1\]\*\*", r"\1🥇 **[1]**", description)
+    description = re.sub(r"(\]\([^\)]+\)\s*)\*\*\[2\]\*\*", r"\1🥈 **[2]**", description)
+    description = re.sub(r"(\]\([^\)]+\)\s*)\*\*\[3\]\*\*", r"\1🥉 **[3]**", description)
+
+    # 优化时间范围连接符与分隔符（将 " - HH:MM" 统一为优雅的 " · HH:MM"）
+    description = re.sub(r"\s+-\s+(\d{2}:\d{2}(?:~\d{2}:\d{2})?)", r" · \1", description)
 
     # 规范化连续多余空行
     description = re.sub(r"\n{3,}", "\n\n", description)
