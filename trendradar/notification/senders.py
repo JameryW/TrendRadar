@@ -61,11 +61,15 @@ def _get_discord_embed_color(report_type: str, content: str = "") -> int:
         kw in content_sample for kw in ["🚨", "⚠️", "异动信号", "暴跌", "熔断"]
     ):
         return 0xED4245
+    elif any(kw in rt_lower for kw in ["周报", "月报"]):
+        return 0xFEE75C
+    elif any(kw in rt_lower for kw in ["ai", "智库"]) or "✨ AI 深度研判" in content_sample:
+        return 0x9B59B6
     elif any(kw in rt_lower for kw in ["日报", "每日", "总结", "早报"]):
         return 0x57F287
     elif any(kw in rt_lower for kw in ["晚报", "夜盘", "复盘"]):
         return 0x9B59B6
-    elif any(kw in rt_lower for kw in ["周报", "月报", "深度"]):
+    elif any(kw in rt_lower for kw in ["深度"]):
         return 0xFEE75C
     elif any(kw in rt_lower for kw in ["增量", "新增"]):
         return 0x00D2D3
@@ -204,6 +208,13 @@ def _build_discord_payload(
     total_batches: int = 1,
 ) -> Dict[str, Any]:
     """构建 Discord 原生 Webhook payload（优化卡片格式：动态色彩、微缩图、author、emoji 字段名、footer、timestamp）"""
+    # 自动从批次内容提取批次号与总批次数（兼容外部调用未显式传参场景）
+    if total_batches <= 1:
+        batch_match = re.search(r"^\*\*\[第 (\d+)/(\d+) 批次\]\*\*", (batch_content or "").strip())
+        if batch_match:
+            batch_index = int(batch_match.group(1))
+            total_batches = int(batch_match.group(2))
+
     summary_fields, body = _extract_discord_summary_fields(batch_content)
     description = body.strip()
 
@@ -228,37 +239,60 @@ def _build_discord_payload(
         flags=re.MULTILINE,
     )
 
-    # 优化正文中的板块标题为 H2 标题（如 📊 热点新闻统计, 🆕 新增新闻, 📡 RSS 深度洞察, 🌐 独立展示区, 📰 RSS 订阅统计, 📋 独立展示区, ⚠️ 数据获取失败）
+    # 优化正文中的板块标题为 H2 标题（如 📊 热点新闻统计, 🆕 新增新闻, 📡 RSS 深度洞察, 🌐 独立展示区, 📰 RSS 订阅统计, 📋 独立展示区, ⚠️ 数据获取失败, ✨ AI 深度研判）
     description = re.sub(
-        r"^(📊|🆕|📡|🌐|📰|📋|⚠️)\s*\*\*([^\n*]+?)(?:[:：])?\*\*[:：]?",
+        r"^(📊|🆕|📡|🌐|📰|📋|⚠️|✨|🤖)\s*\*\*([^\n*]+?)(?:[:：])?\*\*[:：]?",
         r"## \1 \2",
         description,
         flags=re.MULTILINE,
     )
 
-    # 优化热点新闻中的词组标题为 H3 标题并美化（如 ### 🔥 [1/15] **新能源** · 12条）
+    # 优化热点新闻中的词组标题为 H3 标题并美化（支持含序号 [1/15] 或无序号，如 ### 🔥 [1/15] **新能源** · 12条）
     description = re.sub(
-        r"^(🔥|📈|📌)\s*(\[\d+/\d+\])\s*\*\*([^\n*]+)\*\*\s*:\s*(?:\*\*|\*)?(\d+)(?:\*\*|\*)?\s*条",
-        r"### \1 \2 **\3** · \4条",
+        r"^(🔥|📈|📌)\s*(?:(\[\d+/\d+\])\s*)?\*\*([^\n*]+)\*\*\s*:\s*(?:\*\*|\*)?(\d+)(?:\*\*|\*)?\s*条",
+        lambda m: f"### {m.group(1)} {m.group(2) + ' ' if m.group(2) else ''}**{m.group(3)}** · {m.group(4)}条",
         description,
         flags=re.MULTILINE,
     )
 
     # 优化新增热点/独立展示区中的来源与平台分组标题为 H3 标题（如 ### 📌 **今日头条** · 3条）
     description = re.sub(
-        r"^\*\*([^\n*]+)\*\*\s*\((?:\*\*|\*)?(\d+)(?:\*\*|\*)?\s*条\):?",
+        r"^\*\*([^\n*]+)\*\*\s*[\(（](?:\*\*|\*)?(\d+)(?:\*\*|\*)?\s*条[\)）]:?",
         r"### 📌 **\1** · \2条",
         description,
         flags=re.MULTILINE,
     )
 
-    # 优化前三名热榜排名视觉展示（添加金银铜奖牌标示）
-    description = re.sub(r"(\]\([^\)]+\)\s*)\*\*\[1\]\*\*", r"\1🥇 **[1]**", description)
-    description = re.sub(r"(\]\([^\)]+\)\s*)\*\*\[2\]\*\*", r"\1🥈 **[2]**", description)
-    description = re.sub(r"(\]\([^\)]+\)\s*)\*\*\[3\]\*\*", r"\1🥉 **[3]**", description)
+    # 将独立展示区各源段首 [来源名]: 转换为行内代码块徽章 `来源名`:
+    description = re.sub(
+        r"^\[([^\]\(\)\n]+)\]:\s*",
+        r"`\1`: ",
+        description,
+        flags=re.MULTILINE,
+    )
+
+    # 优化前三名热榜排名视觉展示（添加金银铜奖牌标示，支持单排名与排名区间，支持含链接与纯文本）
+    description = re.sub(
+        r"(?<![🥇🥈🥉\w])\*\*\[1(\s*-\s*\d+)?\]\*\*",
+        r"🥇 **[1\1]**",
+        description,
+    )
+    description = re.sub(
+        r"(?<![🥇🥈🥉\w])\*\*\[2(\s*-\s*\d+)?\]\*\*",
+        r"🥈 **[2\1]**",
+        description,
+    )
+    description = re.sub(
+        r"(?<![🥇🥈🥉\w])\*\*\[3(\s*-\s*\d+)?\]\*\*",
+        r"🥉 **[3\1]**",
+        description,
+    )
 
     # 优化时间范围连接符与分隔符（将 " - HH:MM" 统一为优雅的 " · HH:MM"）
     description = re.sub(r"\s+-\s+(\d{2}:\d{2}(?:~\d{2}:\d{2})?)", r" · \1", description)
+
+    # 优化新闻条目重复出现频次（将 " (N次)" 统一为优雅的 " · 🔁 N次"）
+    description = re.sub(r"\s+[\(（](\d+)\s*次[\)）]", r" · 🔁 \1次", description)
 
     # 清理正文首尾遗留的独立分割线
     description = re.sub(r"^(?:---\s*\n*)+", "", description).strip()

@@ -454,6 +454,8 @@ def test_discord_embed_dynamic_colors():
     assert _get_discord_embed_color("晚盘复盘") == 0x9B59B6
     assert _get_discord_embed_color("夜盘跟踪") == 0x9B59B6
     assert _get_discord_embed_color("深度分析周报") == 0xFEE75C
+    assert _get_discord_embed_color("AI分析报告") == 0x9B59B6
+    assert _get_discord_embed_color("智库研判") == 0x9B59B6
     assert _get_discord_embed_color("增量分析报告") == 0x00D2D3
     assert _get_discord_embed_color("RSS订阅报告") == 0xE67E22
     assert _get_discord_embed_color("当前榜单") == 0x5865F2
@@ -625,5 +627,28 @@ def test_discord_embed_heading_and_topic_beautification():
     assert "📋 概览" in field_names
     assert "📊 数据" in field_names
     assert "🆕 新增" in field_names
+    assert " · 21:26 · 🔁 2次" in desc
+
+
+def test_discord_embed_advanced_visual_enhancements():
+    # 自动提取批次头部并赋给卡片标题与页脚，验证奖牌区间、纯文本奖牌、频次图标与段首来源徽章
+    batched_content = (
+        "**[第 2/5 批次]**\n\n"
+        "  1. [彭博社] [全球芯片产业链动态](https://example.com/c1) **[1 - 3]** - 22:00 (3次)\n"
+        "  2. 纯文本要闻 **[2]** - 22:00\n"
+        "\n"
+        "[格隆汇]:\n港股科技股午后走高\n"
+    )
+    payload = _build_discord_payload("AI深度研判", batched_content)
+    embed = payload["embeds"][0]
+    assert embed["title"] == "📡 AI深度研判 · 第 2/5 批"
+    assert embed["footer"]["text"] == "TrendRadar 热点雷达 · 批次 2/5"
+    assert "fields" not in embed  # 第 2 批次自动不输出概览网格
+    desc = embed["description"]
+    assert "🥇 **[1 - 3]**" in desc
+    assert "纯文本要闻 🥈 **[2]** · 22:00" in desc
+    assert " · 22:00 · 🔁 3次" in desc
+    assert "`格隆汇`: 港股科技股午后走高" in desc
+
 
 
