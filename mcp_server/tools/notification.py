@@ -32,7 +32,11 @@ from trendradar.notification.batch import (
     is_discord_webhook_url,
 )
 from trendradar.notification.formatters import strip_markdown
-from trendradar.notification.senders import SMTP_CONFIGS
+from trendradar.notification.senders import (
+    SMTP_CONFIGS,
+    _build_discord_payload,
+    _is_discord_content_template,
+)
 
 from ..utils.errors import MCPError, InvalidParameterError
 
@@ -468,29 +472,30 @@ CHANNEL_FORMAT_GUIDES = {
     },
     "discord": {
         "name": "Discord",
-        "format": "Webhook content（Markdown）",
-        "max_length": "不超过 2000 个字符（内部按 1900 字节安全分批）",
-        "supported": ["标准 Markdown 语法", "换行分隔段落"],
-        "unsupported": ["嵌入式标题/附件（需额外 Discord payload 配置）"],
+        "format": "Webhook Embed 卡片（Markdown 描述，带标题与摘要字段）",
+        "max_length": "Embed 描述支持最多 4096 字符（安全分批 1900 字节）",
+        "supported": ["标准 Markdown 语法", "Embed 颜色与卡片展示", "顶部概览/数据/本轮自动转为内联字段", "支持 ## 二级标题"],
+        "unsupported": ["复杂 HTML 标签"],
         "prompt": (
             "Discord Webhook 格式化策略：\n"
             "1. 使用标准 Markdown 格式\n"
-            "2. 内容保持精炼，单条不超过 2000 个字符\n"
-            "3. 用空行和粗体组织信息层级\n"
-            "4. 不要依赖独立 title 字段，Webhook 只发送 content"
+            "2. 顶部概览行推荐使用 '**概览：**'、'**数据：**'、'**本轮：**'，将自动提取为卡片内联字段\n"
+            "3. AI 分析板块使用 '## ✨ AI 深度研判' 及 '**emoji 标题**' 提升视觉层级\n"
+            "4. 单批次 Embed 描述限制 4096 字符，若发送受阻将自动降级为 content 纯文本重试"
         ),
     },
     "generic_webhook": {
         "name": "通用 Webhook",
-        "format": "Markdown（或自定义模板）",
-        "max_length": "约 4000 字节",
+        "format": "Markdown（或自定义模板；Discord URL 自动使用 Embed）",
+        "max_length": "通用约 4000 字节；Discord Embed 描述约 4096 字符",
         "supported": ["标准 Markdown 语法"],
         "unsupported": ["取决于接收端"],
         "prompt": (
             "通用 Webhook 格式化策略：\n"
             "1. 使用标准 Markdown 格式\n"
             "2. 避免使用特殊平台专有语法\n"
-            "3. 如配置了自定义模板，内容会填充到 {content} 占位符"
+            "3. 如配置了自定义模板，内容会填充到 {content} 占位符\n"
+            "4. Discord Webhook 会自动识别并使用 Embed 卡片展示"
         ),
     },
 }
@@ -794,12 +799,29 @@ def _send_wework(webhook_url: str, content: str, title: str, msg_type: str = "ma
 
 
 def _send_discord(webhook_url: str, content: str, title: str) -> Dict:
-    """Discord Webhook 发送（只提交 content，兼容 204 空响应）。"""
-    payload = {"content": content}
+    """Discord Webhook 发送（优化卡片格式：Embed + emoji + 自动 fallback）。"""
+    payload = _build_discord_payload(title, content)
     try:
-        resp = requests.post(webhook_url, json=payload, timeout=30)
+        resp = requests.post(
+            webhook_url,
+            headers={"Content-Type": "application/json"},
+            json=payload,
+            timeout=30,
+        )
         if 200 <= resp.status_code < 300:
             return {"success": True, "detail": ""}
+
+        # 如果 Discord 拒绝 Embed (4xx 错误)，降级为 content 纯文本重试
+        if 400 <= resp.status_code < 500:
+            fallback_payload = {"content": content[:1950]}
+            resp_fallback = requests.post(
+                webhook_url,
+                headers={"Content-Type": "application/json"},
+                json=fallback_payload,
+                timeout=30,
+            )
+            if 200 <= resp_fallback.status_code < 300:
+                return {"success": True, "detail": "fallback_content"}
 
         try:
             data = resp.json()
@@ -969,12 +991,15 @@ def _send_slack(webhook_url: str, content: str, title: str) -> Dict:
 def _send_generic_webhook(
     webhook_url: str, message: str, title: str, payload_template: str = ""
 ) -> Dict:
-    """通用 Webhook 发送（Markdown 格式，支持自定义模板）"""
+    """通用 Webhook 发送（Markdown 格式，支持自定义模板，Discord 自动使用 Embed 卡片）"""
     is_discord = is_discord_webhook_url(webhook_url)
+    use_discord_payload = is_discord and (
+        not payload_template or _is_discord_content_template(payload_template)
+    )
     try:
-        # Discord's execute-webhook payload uses content; do not let a
-        # legacy generic template add unsupported top-level fields.
-        if is_discord:
+        if use_discord_payload:
+            payload = _build_discord_payload(title, message)
+        elif is_discord:
             payload = {"content": message}
         elif payload_template:
             json_content = json.dumps(message)[1:-1]
@@ -993,6 +1018,19 @@ def _send_generic_webhook(
             json=payload,
             timeout=30,
         )
+
+        # 如果是 Discord Embed 且遇到 4xx，降级为 content 纯文本重试
+        if use_discord_payload and 400 <= resp.status_code < 500:
+            fallback_payload = {"content": message[:1950]}
+            resp_fallback = requests.post(
+                webhook_url,
+                headers={"Content-Type": "application/json"},
+                json=fallback_payload,
+                timeout=30,
+            )
+            if 200 <= resp_fallback.status_code < 300:
+                return {"success": True, "detail": "fallback_content"}
+
         ok = 200 <= resp.status_code < 300
         return {"success": ok, "detail": "" if ok else f"status={resp.status_code}"}
     except Exception as e:

@@ -138,6 +138,38 @@ def render_ai_analysis_markdown(result: AIAnalysisResult) -> str:
     return _render_ai_analysis_markdown_like(result)
 
 
+def render_ai_analysis_discord(result: AIAnalysisResult) -> str:
+    """渲染为 Discord Embed Markdown 格式（使用 ## 二级标题及 emoji 强调视觉层级）"""
+    if not result:
+        return ""
+    if not result.success:
+        if result.skipped:
+            return f"ℹ️ {result.error}"
+        return f"⚠️ AI 分析失败: {result.error}"
+
+    lines = ["## ✨ AI 深度研判", ""]
+
+    def _add_section(emoji: str, title: str, content: str):
+        if content:
+            lines.extend([f"**{emoji} {title}**", _format_list_content(content), ""])
+
+    _add_section("🎯", "核心态势", result.core_trends)
+    market_regions = getattr(result, "market_regions", "")
+    if market_regions:
+        _add_section("🌏", "地域/市场", market_regions)
+    _add_section("💬", "舆论分歧", result.sentiment_controversy)
+    _add_section("📡", "异动信号", result.signals)
+    _add_section("🧠", "专业视角", result.rss_insights)
+    _add_section("💡", "研判策略", result.outlook_strategy)
+
+    if result.standalone_summaries:
+        summaries_text = _format_standalone_summaries(result.standalone_summaries)
+        if summaries_text:
+            lines.extend(["**🌐 独立速览**", summaries_text])
+
+    return "\n".join(lines).strip()
+
+
 def render_ai_analysis_feishu(result: AIAnalysisResult) -> str:
     """渲染为飞书卡片 2.0 markdown 格式
 
@@ -276,6 +308,7 @@ def get_ai_analysis_renderer(channel: str):
         "ntfy": render_ai_analysis_markdown,
         "bark": render_ai_analysis_plain,
         "slack": render_ai_analysis_markdown,
+        "discord": render_ai_analysis_discord,
     }
     return renderers.get(channel, render_ai_analysis_markdown)
 
