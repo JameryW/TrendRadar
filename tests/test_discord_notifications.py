@@ -11,6 +11,7 @@ from trendradar.notification.senders import (
     _build_discord_payload,
     _extract_discord_summary_fields,
     _get_discord_embed_color,
+    _get_discord_embed_thumbnail,
     send_to_generic_webhook,
 )
 
@@ -485,3 +486,69 @@ def test_render_ai_analysis_discord():
 def test_get_ai_analysis_renderer_discord():
     renderer = get_ai_analysis_renderer("discord")
     assert renderer == render_ai_analysis_discord
+
+
+def test_extract_crawler_native_summary_fields():
+    content = (
+        "**总新闻：** 56 条（新增 8 + 0）\n"
+        "**热榜：** 47/255（平台 11/11）\n"
+        "**RSS：** 9/40（源 2/2）\n"
+        "**AI 分析：** 47 + 9\n"
+        "**类型：** 当前榜单\n"
+        "**时间：** 2026-11-01 20:50:00\n"
+        "**最热话题：** 科技创新(5) | 低空经济(4) | 人工智能(3)\n"
+        "\n"
+        "📊 **热点新闻统计** (共 47 条)\n"
+    )
+    fields, body = _extract_discord_summary_fields(content)
+    assert len(fields) == 6
+    assert fields[0] == {"name": "📋 总新闻", "value": "56 条（新增 8 + 0）", "inline": True}
+    assert fields[1] == {"name": "🔥 热榜", "value": "47/255（平台 11/11）", "inline": True}
+    assert fields[2] == {"name": "📡 RSS", "value": "9/40（源 2/2）", "inline": True}
+    assert fields[3] == {"name": "✨ AI 分析", "value": "47 + 9", "inline": True}
+    assert fields[4] == {"name": "🏷️ 类型", "value": "当前榜单", "inline": True}
+    assert fields[5] == {"name": "🔥 最热话题", "value": "科技创新(5) | 低空经济(4) | 人工智能(3)", "inline": False}
+    assert body.startswith("📊 **热点新闻统计**")
+
+
+def test_discord_embed_thumbnail():
+    assert "1f6a8.png" in _get_discord_embed_thumbnail("市场异动预警")
+    assert "2728.png" in _get_discord_embed_thumbnail("AI深度研判")
+    assert "2728.png" in _get_discord_embed_thumbnail("当前报告", "## ✨ AI 深度研判\n- 核心内容")
+    assert "1f4c8.png" in _get_discord_embed_thumbnail("每日早报")
+    assert "1f319.png" in _get_discord_embed_thumbnail("晚盘复盘")
+    assert "1f4ca.png" in _get_discord_embed_thumbnail("深度分析周报")
+    assert "1f4e1.png" in _get_discord_embed_thumbnail("当前榜单")
+
+
+def test_discord_embed_author_thumbnail_badges():
+    raw_content = (
+        "**概览：** 10个平台\n"
+        "**数据：** 100条\n"
+        "---\n"
+        "  1. [今日头条] [新能源车免征购置税延长](https://example.com) [1] - 10:30 (2次)\n"
+        "  2. [华尔街见闻] [全球降息周期启动](https://example.com/ws) [2]"
+    )
+    payload = _build_discord_payload("今日总结", raw_content, batch_index=1, total_batches=2)
+    assert payload["username"] == "TrendRadar"
+    embed = payload["embeds"][0]
+    assert embed["author"]["name"] == "TrendRadar · 实时舆情雷达"
+    assert "1f4c8.png" in embed["thumbnail"]["url"]  # 今日总结 -> 📈
+    assert "批次 1/2" in embed["footer"]["text"]
+    assert "`今日头条`" in embed["description"]
+    assert "`华尔街见闻`" in embed["description"]
+    assert len(embed["fields"]) == 2
+
+
+def test_discord_embed_multi_batch_field_scoping():
+    content_b1 = "**概览：** 10个平台\n**数据：** 100条\n---\n正文第一批"
+    content_b2 = "**概览：** 10个平台\n**数据：** 100条\n---\n正文第二批"
+
+    payload1 = _build_discord_payload("当前榜单", content_b1, batch_index=1, total_batches=2)
+    payload2 = _build_discord_payload("当前榜单", content_b2, batch_index=2, total_batches=2)
+
+    assert "fields" in payload1["embeds"][0]
+    # 第 2 批去除了冗余的 fields 展示，但正文中的 header 依然被干净移除
+    assert "fields" not in payload2["embeds"][0]
+    assert payload2["embeds"][0]["description"] == "正文第二批"
+

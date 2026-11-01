@@ -18,6 +18,7 @@
 import smtplib
 import time
 import json
+import os
 import re
 from datetime import datetime, timezone
 from email.header import Header
@@ -69,6 +70,26 @@ def _get_discord_embed_color(report_type: str, content: str = "") -> int:
     return 0x5865F2
 
 
+def _get_discord_embed_thumbnail(report_type: str, content: str = "") -> str:
+    """根据报告类型和正文内容动态确定 Discord 卡片右上角缩略图 URL"""
+    rt_lower = (report_type or "").lower()
+    content_sample = (content or "")[:500]
+
+    if any(kw in rt_lower for kw in ["预警", "异动", "突发", "紧急"]) or any(
+        kw in content_sample for kw in ["🚨", "⚠️", "异动信号", "暴跌", "熔断"]
+    ):
+        return "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/1f6a8.png"  # 🚨
+    if any(kw in rt_lower for kw in ["周报", "月报"]):
+        return "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/1f4ca.png"  # 📊
+    if any(kw in rt_lower for kw in ["ai", "深度", "研判", "智库"]) or "✨ AI 深度研判" in content_sample:
+        return "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/2728.png"  # ✨
+    if any(kw in rt_lower for kw in ["早报", "日报", "每日", "总结"]):
+        return "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/1f4c8.png"  # 📈
+    if any(kw in rt_lower for kw in ["晚报", "夜盘", "复盘"]):
+        return "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/1f319.png"  # 🌙
+    return "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/1f4e1.png"  # 📡
+
+
 def _is_discord_content_template(payload_template: Optional[str]) -> bool:
     """识别 Discord 简单 content 模板或默认通用模板"""
     if not payload_template:
@@ -88,30 +109,63 @@ def _extract_discord_summary_fields(content: str) -> tuple:
     lines = (content or "").strip().splitlines()
     fields = []
     body_start = 0
-    expected = {"概览", "数据", "本轮", "最热话题"}
-    emoji_map = {"概览": "📋", "数据": "📊", "本轮": "🕐", "最热话题": "🔥"}
+    expected = {
+        # 通用 Webhook / MCP 格式
+        "概览",
+        "数据",
+        "本轮",
+        # 爬虫主程序原生报表格式
+        "总新闻",
+        "热榜",
+        "RSS",
+        "独立展示",
+        "AI 分析",
+        "类型",
+        "时间",
+        "最热话题",
+    }
+    emoji_map = {
+        "概览": "📋",
+        "数据": "📊",
+        "本轮": "🕐",
+        "总新闻": "📋",
+        "热榜": "🔥",
+        "RSS": "📡",
+        "独立展示": "🌐",
+        "AI 分析": "✨",
+        "类型": "🏷️",
+        "时间": "🕐",
+        "最热话题": "🔥",
+    }
+    pattern = (
+        r"^(\*\*)?(概览|数据|本轮|总新闻|热榜|RSS|独立展示|AI 分析|类型|时间|最热话题)：(\*\*)?(.*)$"
+    )
 
-    for idx, line in enumerate(lines[:6]):
+    for idx, line in enumerate(lines[:12]):
         stripped = line.strip()
         if not stripped or stripped == "---":
             body_start = idx + 1
             continue
 
-        match = re.match(r"^\*\*(概览|数据|本轮|最热话题)：\*\*(.*)$", stripped)
-        if not match:
-            match = re.match(r"^(概览|数据|本轮|最热话题)：(.*)$", stripped)
+        match = re.match(pattern, stripped)
         if not match:
             break
 
-        name, value = match.group(1), match.group(2).strip() or "\u200b"
+        name = match.group(2)
+        value = match.group(4).strip() or "\u200b"
         if name not in expected:
             break
 
+        # 时间字段由 Discord 卡片原生 timestamp 呈现，从正文中清理但略过 fields 避免冗余
+        if name == "时间":
+            body_start = idx + 1
+            continue
+
         if len(value) > DISCORD_EMBED_FIELD_VALUE_LIMIT:
             value = value[: DISCORD_EMBED_FIELD_VALUE_LIMIT - 3].rstrip() + "..."
-        display_name = f"{emoji_map.get(name, '')} {name}"
-        # 概览、数据、本轮内联排版成一行，最热话题独占整行
-        inline = name != "最热话题"
+        display_name = f"{emoji_map.get(name, '')} {name}".strip()
+        # 最热话题与独立展示独占整行，其余指标在桌面/手机端自适应 3 列网格排版
+        inline = name not in ("最热话题", "独立展示")
         fields.append({"name": display_name, "value": value, "inline": inline})
         body_start = idx + 1
 
@@ -133,7 +187,7 @@ def _build_discord_payload(
     batch_index: int = 1,
     total_batches: int = 1,
 ) -> Dict[str, Any]:
-    """构建 Discord 原生 Webhook payload（优化卡片格式：动态色彩、emoji 字段名、footer、timestamp）"""
+    """构建 Discord 原生 Webhook payload（优化卡片格式：动态色彩、微缩图、author、emoji 字段名、footer、timestamp）"""
     summary_fields, body = _extract_discord_summary_fields(batch_content)
     description = body.strip()
 
@@ -150,6 +204,14 @@ def _build_discord_payload(
         description,
     ).strip()
 
+    # 将行首的 [平台/来源] 转换为 Discord 原生行内代码块徽章 `平台/来源`
+    description = re.sub(
+        r"(^\s*\d+\.\s*)\[([^\]\(\)\n]+)\]\s*",
+        r"\1`\2` ",
+        description,
+        flags=re.MULTILINE,
+    )
+
     # 规范化连续多余空行
     description = re.sub(r"\n{3,}", "\n\n", description)
 
@@ -163,16 +225,36 @@ def _build_discord_payload(
         title += f" · 第 {batch_index}/{total_batches} 批"
 
     color = _get_discord_embed_color(report_type, description)
+    thumbnail_url = _get_discord_embed_thumbnail(report_type, description)
 
-    embed = {
+    footer_text = "TrendRadar 热点雷达"
+    if total_batches > 1:
+        footer_text += f" · 批次 {batch_index}/{total_batches}"
+
+    embed: Dict[str, Any] = {
         "title": title[:256],
         "description": description,
         "color": color,
-        "footer": {"text": "TrendRadar 热点雷达"},
+        "author": {
+            "name": "TrendRadar · 实时舆情雷达",
+            "icon_url": "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/1f4e1.png",
+        },
+        "thumbnail": {"url": thumbnail_url},
+        "footer": {
+            "text": footer_text,
+            "icon_url": "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/1f4e1.png",
+        },
         "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
     }
+
+    web_url = os.getenv("TRENDRADAR_WEB_URL") or os.getenv("WEB_URL")
+    if web_url:
+        embed["url"] = web_url
+
     if summary_fields:
-        embed["fields"] = summary_fields
+        # 当存在多个批次时，仅在第 1 批展示统计概览字段网格，后续批次专注于展示具体新闻正文，避免重复刷屏
+        if batch_index == 1 or total_batches == 1:
+            embed["fields"] = summary_fields
 
     return {
         "username": "TrendRadar",
@@ -1537,7 +1619,7 @@ def send_to_discord(
     mode: str = "daily",
     account_label: str = "",
     *,
-    batch_size: int = DISCORD_SAFE_BATCH_BYTES,
+    batch_size: int = DISCORD_EMBED_SAFE_BATCH_BYTES,
     batch_interval: float = 1.0,
     split_content_func: Optional[Callable] = None,
     rss_items: Optional[list] = None,
@@ -1556,7 +1638,7 @@ def send_to_discord(
         proxy_url=proxy_url,
         mode=mode,
         account_label=account_label,
-        batch_size=min(batch_size, DISCORD_SAFE_BATCH_BYTES),
+        batch_size=min(batch_size, DISCORD_EMBED_SAFE_BATCH_BYTES),
         batch_interval=batch_interval,
         split_content_func=split_content_func,
         rss_items=rss_items,
