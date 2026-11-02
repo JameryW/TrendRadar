@@ -21,6 +21,7 @@ class AIAnalysisResult:
     # 核心板块
     market_sentiment: str = ""           # 整体舆情情绪/市场基调 (如 "积极偏多", "中性分歧", "谨慎观望", "避险防守")
     highlight_topics: List[str] = field(default_factory=list)  # 核心主题标签/实体列表 (如 ["AI算力", "半导体", "美联储利率"])
+    key_takeaway: str = ""               # 一句话核心研判/结论 (30-60字，直击本轮最核心逻辑)
     core_trends: str = ""                # 核心热点与舆情态势
     market_regions: str = ""             # 地域与市场影响研判
     sentiment_controversy: str = ""      # 舆论风向与争议
@@ -628,6 +629,7 @@ class AIAnalyzer:
         # 解析成功，提取字段
         try:
             result.market_sentiment = str(data.get("market_sentiment", "")).strip()
+            result.key_takeaway = str(data.get("key_takeaway", "")).strip()
 
             raw_topics = data.get("highlight_topics", [])
             if isinstance(raw_topics, list):

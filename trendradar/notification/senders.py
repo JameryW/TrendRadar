@@ -102,6 +102,28 @@ def _get_discord_embed_thumbnail(report_type: str, content: str = "") -> str:
     return "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/1f4e1.png"  # 📡
 
 
+def _get_feishu_header_color(report_type: str, content: str = "") -> str:
+    """根据报告类型和正文内容动态确定飞书卡片 2.0 顶栏模板颜色 (blue/turquoise/indigo/purple/orange/red/green)"""
+    rt_lower = (report_type or "").lower()
+    content_sample = (content or "")[:500]
+
+    if any(kw in rt_lower for kw in ["预警", "异动", "突发", "紧急"]) or any(
+        kw in content_sample for kw in ["🚨", "⚠️", "异动信号", "暴跌", "熔断", "避险"]
+    ):
+        return "red"
+    if any(kw in rt_lower for kw in ["晚报", "夜盘", "复盘"]):
+        return "purple"
+    if any(kw in rt_lower for kw in ["早报", "日报", "每日", "总结"]):
+        return "turquoise"
+    if any(kw in rt_lower for kw in ["ai", "深度", "研判", "智库"]) or "✨ AI 深度研判" in content_sample:
+        return "indigo"
+    if any(kw in rt_lower for kw in ["增量", "新增"]):
+        return "green"
+    if any(kw in rt_lower for kw in ["rss", "订阅"]):
+        return "orange"
+    return "blue"
+
+
 def _is_discord_content_template(payload_template: Optional[str]) -> bool:
     """识别 Discord 简单 content 模板或默认通用模板"""
     if not payload_template:
@@ -136,6 +158,9 @@ def _extract_discord_summary_fields(content: str) -> tuple:
         "市场情绪",
         "焦点标签",
         "核心标签",
+        "核心研判",
+        "核心结论",
+        "研判结论",
         "类型",
         "时间",
         "最热话题",
@@ -157,6 +182,9 @@ def _extract_discord_summary_fields(content: str) -> tuple:
         "市场情绪": "🌡️",
         "焦点标签": "🏷️",
         "核心标签": "🏷️",
+        "核心研判": "🎯",
+        "核心结论": "🎯",
+        "研判结论": "🎯",
         "类型": "🏷️",
         "时间": "🕐",
         "最热话题": "🔥",
@@ -166,7 +194,7 @@ def _extract_discord_summary_fields(content: str) -> tuple:
         "耗时": "⏱️",
     }
     pattern = (
-        r"^(\*\*)?(概览|数据|本轮|总新闻|热榜|RSS|独立展示|AI 分析|舆情基调|市场情绪|焦点标签|核心标签|类型|时间|最热话题|新增|来源|状态|耗时)[：:]\s*(\*\*)?(.*)$"
+        r"^(\*\*)?(概览|数据|本轮|总新闻|热榜|RSS|独立展示|AI 分析|舆情基调|市场情绪|焦点标签|核心标签|核心研判|核心结论|研判结论|类型|时间|最热话题|新增|来源|状态|耗时)[：:]\s*(\*\*)?(.*)$"
     )
 
     for idx, line in enumerate(lines[:12]):
@@ -192,8 +220,8 @@ def _extract_discord_summary_fields(content: str) -> tuple:
         if len(value) > DISCORD_EMBED_FIELD_VALUE_LIMIT:
             value = value[: DISCORD_EMBED_FIELD_VALUE_LIMIT - 3].rstrip() + "..."
         display_name = f"{emoji_map.get(name, '')} {name}".strip()
-        # 最热话题、独立展示与焦点标签独占整行，其余指标在桌面/手机端自适应 3 列网格排版
-        inline = name not in ("最热话题", "独立展示", "焦点标签", "核心标签")
+        # 最热话题、独立展示、焦点标签与核心研判独占整行，其余指标在桌面/手机端自适应 3 列网格排版
+        inline = name not in ("最热话题", "独立展示", "焦点标签", "核心标签", "核心研判", "核心结论", "研判结论")
         fields.append({"name": display_name, "value": value, "inline": inline})
         body_start = idx + 1
 
@@ -509,13 +537,27 @@ def send_to_feishu(
                 },
             }
         else:
+            card_title = f"📡 {report_type}"
+            if len(batches) > 1:
+                card_title += f" · 第 {i}/{len(batches)} 批"
+
+            header_color = _get_feishu_header_color(report_type, batch_content)
+            card_body = re.sub(r"^\*\*\[第 \d+/\d+ 批次\]\*\*\n*", "", batch_content).strip()
+
             payload = {
                 "msg_type": "interactive",
                 "card": {
                     "schema": "2.0",
+                    "header": {
+                        "title": {
+                            "tag": "plain_text",
+                            "content": card_title,
+                        },
+                        "template": header_color,
+                    },
                     "body": {
                         "elements": [
-                            {"tag": "markdown", "content": batch_content}
+                            {"tag": "markdown", "content": card_body}
                         ]
                     },
                 },
@@ -631,10 +673,14 @@ def send_to_dingtalk(
             f"发送{log_prefix}第 {i}/{len(batches)} 批次，大小：{content_size} 字节 [{report_type}]"
         )
 
+        batch_title = f"TrendRadar 热点报告 - {report_type}"
+        if len(batches) > 1:
+            batch_title += f" ({i}/{len(batches)})"
+
         payload = {
             "msgtype": "markdown",
             "markdown": {
-                "title": f"TrendRadar 热点分析报告 - {report_type}",
+                "title": batch_title,
                 "text": batch_content,
             },
         }

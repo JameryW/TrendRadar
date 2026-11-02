@@ -25,7 +25,10 @@ from trendradar.ai.formatter import (
     render_ai_analysis_plain,
     render_ai_analysis_telegram,
 )
-from trendradar.notification.senders import _extract_discord_summary_fields
+from trendradar.notification.senders import (
+    _extract_discord_summary_fields,
+    _get_feishu_header_color,
+)
 from mcp_server.tools.notification import CHANNEL_FORMAT_GUIDES
 
 
@@ -315,7 +318,7 @@ def test_format_topics_and_sentiment_line():
 
     # Telegram: HTML 标签
     tg_line = _format_topics_and_sentiment_line(res, style="telegram")
-    assert "<code>🌡️ <b>态势基调:</b> 积极偏多 ｜ 🏷️ <b>焦点:</b> #AI算力 #国产芯片</code>" == tg_line
+    assert "<blockquote>🌡️ <b>态势基调:</b> 积极偏多 ｜ 🏷️ <b>焦点:</b> #AI算力 #国产芯片</blockquote>" == tg_line
 
     # Plain: 方括号纯文本
     plain_line = _format_topics_and_sentiment_line(res, style="plain")
@@ -356,7 +359,7 @@ def test_render_ai_analysis_with_sentiment_and_topics_across_channels():
     # Telegram
     tg_out = render_ai_analysis_telegram(res)
     assert "<b>✨ AI 深度研判</b>" in tg_out
-    assert "<code>🌡️ <b>态势基调:</b> 谨慎观望 ｜ 🏷️ <b>焦点:</b> #低空经济 #量子计算</code>" in tg_out
+    assert "<blockquote>🌡️ <b>态势基调:</b> 谨慎观望 ｜ 🏷️ <b>焦点:</b> #低空经济 #量子计算</blockquote>" in tg_out
 
     # HTML Rich
     html_out = render_ai_analysis_html_rich(res)
@@ -387,3 +390,97 @@ def test_discord_extract_summary_fields_with_sentiment_and_topics():
     assert tag_field["inline"] is False
     assert tag_field["value"] == "#AI算力 #人形机器人"
     assert "正文内容从这里开始" in body
+
+
+def test_ai_analysis_result_key_takeaway_parsing():
+    """验证 AIAnalysisResult 支持 key_takeaway 一句话核心研判字段与解析"""
+    res = AIAnalysisResult(
+        market_sentiment="中性分歧",
+        highlight_topics=["美联储利率", "算力出口管制"],
+        key_takeaway="降息预期延后与科技自主可控博弈加剧，资金分流加剧。",
+    )
+    assert res.key_takeaway == "降息预期延后与科技自主可控博弈加剧，资金分流加剧。"
+
+    # 解析测试
+    analyzer = AIAnalyzer(
+        ai_config={"provider": "test", "model": "test"},
+        analysis_config={"MAX_NEWS_FOR_ANALYSIS": 50},
+        get_time_func=lambda: "2026-11-02 21:00",
+    )
+    json_payload = json.dumps({
+        "market_sentiment": "积极偏多",
+        "highlight_topics": ["低空经济", "量子计算"],
+        "key_takeaway": "低空经济产业政策加速落地，跨平台热度持续升温。",
+        "core_trends": "核心趋势说明",
+    }, ensure_ascii=False)
+    parsed = analyzer._parse_response(json_payload)
+    assert parsed.success is True
+    assert parsed.key_takeaway == "低空经济产业政策加速落地，跨平台热度持续升温。"
+
+
+def test_render_ai_analysis_key_takeaway_across_channels():
+    """验证各渠道渲染器均能无损呈现核心研判一句话结论"""
+    res = AIAnalysisResult(
+        market_sentiment="避险防守",
+        highlight_topics=["黄金白银", "避险资产"],
+        key_takeaway="地缘风险推升避险买盘，贵金属全网热度霸屏。",
+        core_trends="避险资产大涨",
+        analyzed_news=10,
+        hotlist_analyzed=10,
+        success=True,
+    )
+
+    # Discord: 引用行
+    discord_out = render_ai_analysis_discord(res)
+    assert "> 🎯 **核心研判**: 地缘风险推升避险买盘，贵金属全网热度霸屏。" in discord_out
+
+    # Feishu: 引用行
+    feishu_out = render_ai_analysis_feishu(res)
+    assert "> 🎯 **核心研判**: 地缘风险推升避险买盘，贵金属全网热度霸屏。" in feishu_out
+
+    # Dingtalk: 引用行
+    dingtalk_out = render_ai_analysis_dingtalk(res)
+    assert "> 🎯 **核心研判**: 地缘风险推升避险买盘，贵金属全网热度霸屏。" in dingtalk_out
+
+    # Telegram: blockquote 引用块
+    tg_out = render_ai_analysis_telegram(res)
+    assert "<blockquote>🎯 <b>核心研判:</b> 地缘风险推升避险买盘，贵金属全网热度霸屏。</blockquote>" in tg_out
+
+    # Plain: 方括号行
+    plain_out = render_ai_analysis_plain(res)
+    assert "[🎯 核心研判: 地缘风险推升避险买盘，贵金属全网热度霸屏。]" in plain_out
+
+    # HTML Rich: 独立卡片组件
+    html_out = render_ai_analysis_html_rich(res)
+    assert '<div class="ai-key-takeaway">🎯 <strong>核心研判：</strong>地缘风险推升避险买盘，贵金属全网热度霸屏。</div>' in html_out
+
+
+def test_feishu_header_color_selection():
+    """验证飞书卡片 2.0 顶栏模板颜色根据报告品类和紧急程度自适应"""
+    assert _get_feishu_header_color("突发事件预警") == "red"
+    assert _get_feishu_header_color("全天汇总", content="正文包含 🚨 暴跌熔断") == "red"
+    assert _get_feishu_header_color("每日早报") == "turquoise"
+    assert _get_feishu_header_color("夜盘复盘总结") == "purple"
+    assert _get_feishu_header_color("AI深度研判报告") == "indigo"
+    assert _get_feishu_header_color("当前增量热点") == "green"
+    assert _get_feishu_header_color("RSS订阅精选") == "orange"
+    assert _get_feishu_header_color("常规综合播报") == "blue"
+
+
+def test_discord_extract_summary_fields_with_key_takeaway():
+    """验证 Discord Embed 概览解析器能够提取核心研判为独立整行字段"""
+    raw_content = (
+        "**总新闻：** 100条\n"
+        "**核心研判：** 算力与半导体主导盘面，宏观分歧加剧\n"
+        "**焦点标签：** #AI算力 #半导体\n"
+        "**热榜：** 70条\n"
+        "---\n"
+        "正文开始..."
+    )
+    fields, body = _extract_discord_summary_fields(raw_content)
+    names = [f["name"] for f in fields]
+    assert "🎯 核心研判" in names
+    takeaway_field = next(f for f in fields if f["name"] == "🎯 核心研判")
+    assert takeaway_field["inline"] is False
+    assert takeaway_field["value"] == "算力与半导体主导盘面，宏观分歧加剧"
+    assert "正文开始..." in body

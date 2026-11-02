@@ -863,6 +863,17 @@ def render_html_content(
                 border-radius: 9999px;
             }
 
+            .ai-key-takeaway {
+                margin-top: 10px;
+                padding: 8px 12px;
+                background: #f8fafc;
+                border-left: 3px solid #3b82f6;
+                border-radius: 4px;
+                font-size: 13px;
+                color: #334155;
+                line-height: 1.5;
+            }
+
             .ai-section-badge {
                 background: #0ea5e9;
                 color: white;
@@ -1341,6 +1352,11 @@ def render_html_content(
                 background: #334155;
                 color: #cbd5e1;
                 border-color: #475569;
+            }
+            body.dark-mode .ai-key-takeaway {
+                background: #1e293b;
+                border-left-color: #60a5fa;
+                color: #cbd5e1;
             }
             body.dark-mode .ai-section-badge { background: #4f46e5; }
             body.dark-mode .ai-block {

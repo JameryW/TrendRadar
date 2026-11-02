@@ -131,7 +131,7 @@ def _format_topics_and_sentiment_line(
         if topics:
             tag_badges = " ".join(f"#{_escape_html(t)}" for t in topics[:5])
             parts.append(f"🏷️ <b>焦点:</b> {tag_badges}")
-        return f"<code>{' ｜ '.join(parts)}</code>"
+        return f"<blockquote>{' ｜ '.join(parts)}</blockquote>"
 
     if style == "plain":
         parts = []
@@ -196,6 +196,10 @@ def _render_ai_analysis_markdown_like(
     )
     if tags_line:
         lines.append(tags_line)
+
+    takeaway = str(getattr(result, "key_takeaway", "") or "").strip()
+    if takeaway:
+        lines.append(f"> 🎯 **核心研判**: {takeaway}")
     lines.append("")
 
     if result.core_trends:
@@ -256,6 +260,10 @@ def render_ai_analysis_discord(result: AIAnalysisResult) -> str:
     tags_line = _format_topics_and_sentiment_line(result, style="discord")
     if tags_line:
         lines.append(tags_line)
+
+    takeaway = str(getattr(result, "key_takeaway", "") or "").strip()
+    if takeaway:
+        lines.append(f"> 🎯 **核心研判**: {takeaway}")
     lines.append("")
 
     def _add_section(emoji: str, title: str, content: str):
@@ -305,6 +313,10 @@ def render_ai_analysis_dingtalk(result: AIAnalysisResult) -> str:
     tags_line = _format_topics_and_sentiment_line(result, style="dingtalk")
     if tags_line:
         lines.append(tags_line)
+
+    takeaway = str(getattr(result, "key_takeaway", "") or "").strip()
+    if takeaway:
+        lines.append(f"> 🎯 **核心研判**: {takeaway}")
     lines.append("")
 
     if result.core_trends:
@@ -362,6 +374,10 @@ def render_ai_analysis_plain(result: AIAnalysisResult) -> str:
     tags_line = _format_topics_and_sentiment_line(result, style="plain")
     if tags_line:
         lines.append(tags_line)
+
+    takeaway = str(getattr(result, "key_takeaway", "") or "").strip()
+    if takeaway:
+        lines.append(f"[🎯 核心研判: {takeaway}]")
     lines.append("")
 
     if result.core_trends:
@@ -412,6 +428,10 @@ def render_ai_analysis_telegram(result: AIAnalysisResult) -> str:
     tags_line = _format_topics_and_sentiment_line(result, style="telegram")
     if tags_line:
         lines.append(tags_line)
+
+    takeaway = str(getattr(result, "key_takeaway", "") or "").strip()
+    if takeaway:
+        lines.append(f"<blockquote>🎯 <b>核心研判:</b> {_escape_html(takeaway)}</blockquote>")
     lines.append("")
 
     if result.core_trends:
@@ -506,6 +526,13 @@ def render_ai_analysis_html_rich(result: AIAnalysisResult) -> str:
             )
         tags_html = f'<div class="ai-tags-row">{" ".join(tags_badges)}</div>'
 
+    takeaway = str(getattr(result, "key_takeaway", "") or "").strip()
+    takeaway_html = (
+        f'<div class="ai-key-takeaway">🎯 <strong>核心研判：</strong>{_escape_html(takeaway)}</div>'
+        if takeaway
+        else ""
+    )
+
     ai_html = f"""
                 <div class="ai-section">
                     <div class="ai-section-header">
@@ -513,6 +540,7 @@ def render_ai_analysis_html_rich(result: AIAnalysisResult) -> str:
                             <div class="ai-section-title">✨ AI 深度研判</div>
                             {subtext_html}
                             {tags_html}
+                            {takeaway_html}
                         </div>
                         <span class="ai-section-badge">AI</span>
                     </div>
