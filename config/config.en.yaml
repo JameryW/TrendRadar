@@ -405,10 +405,7 @@ ai:
                                     # Note: if the API rejects this param (HTTP 400), set to 0 to stop sending it
   # Advanced options
   num_retries: 1                    # In-model retry count on failure
-  fallback_models:                  # Failover chain (tried in order; error only when all fail)
-    - model: "openai/deepseek-flash"
-      api_base: "https://api.deepseek.com/v1"
-      api_key_env: "DEEPSEEK_API_KEY"   # fallback keeps its own provider key
+  fallback_models: []
                                     # String entries still work (inherit primary endpoint/creds):
                                     #   ["openai/gpt-4o-mini"]
 
