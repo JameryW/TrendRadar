@@ -132,6 +132,10 @@ def _extract_discord_summary_fields(content: str) -> tuple:
         "RSS",
         "独立展示",
         "AI 分析",
+        "舆情基调",
+        "市场情绪",
+        "焦点标签",
+        "核心标签",
         "类型",
         "时间",
         "最热话题",
@@ -149,6 +153,10 @@ def _extract_discord_summary_fields(content: str) -> tuple:
         "RSS": "📡",
         "独立展示": "🌐",
         "AI 分析": "✨",
+        "舆情基调": "🌡️",
+        "市场情绪": "🌡️",
+        "焦点标签": "🏷️",
+        "核心标签": "🏷️",
         "类型": "🏷️",
         "时间": "🕐",
         "最热话题": "🔥",
@@ -158,7 +166,7 @@ def _extract_discord_summary_fields(content: str) -> tuple:
         "耗时": "⏱️",
     }
     pattern = (
-        r"^(\*\*)?(概览|数据|本轮|总新闻|热榜|RSS|独立展示|AI 分析|类型|时间|最热话题|新增|来源|状态|耗时)[：:]\s*(\*\*)?(.*)$"
+        r"^(\*\*)?(概览|数据|本轮|总新闻|热榜|RSS|独立展示|AI 分析|舆情基调|市场情绪|焦点标签|核心标签|类型|时间|最热话题|新增|来源|状态|耗时)[：:]\s*(\*\*)?(.*)$"
     )
 
     for idx, line in enumerate(lines[:12]):
@@ -184,8 +192,8 @@ def _extract_discord_summary_fields(content: str) -> tuple:
         if len(value) > DISCORD_EMBED_FIELD_VALUE_LIMIT:
             value = value[: DISCORD_EMBED_FIELD_VALUE_LIMIT - 3].rstrip() + "..."
         display_name = f"{emoji_map.get(name, '')} {name}".strip()
-        # 最热话题与独立展示独占整行，其余指标在桌面/手机端自适应 3 列网格排版
-        inline = name not in ("最热话题", "独立展示")
+        # 最热话题、独立展示与焦点标签独占整行，其余指标在桌面/手机端自适应 3 列网格排版
+        inline = name not in ("最热话题", "独立展示", "焦点标签", "核心标签")
         fields.append({"name": display_name, "value": value, "inline": inline})
         body_start = idx + 1
 

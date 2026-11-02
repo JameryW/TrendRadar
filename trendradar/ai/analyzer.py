@@ -7,6 +7,7 @@ AI 分析器模块
 """
 
 import json
+import re
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, NamedTuple, Optional
 
@@ -18,6 +19,8 @@ from trendradar.ai.prompt_loader import load_prompt_template
 class AIAnalysisResult:
     """AI 分析结果"""
     # 核心板块
+    market_sentiment: str = ""           # 整体舆情情绪/市场基调 (如 "积极偏多", "中性分歧", "谨慎观望", "避险防守")
+    highlight_topics: List[str] = field(default_factory=list)  # 核心主题标签/实体列表 (如 ["AI算力", "半导体", "美联储利率"])
     core_trends: str = ""                # 核心热点与舆情态势
     market_regions: str = ""             # 地域与市场影响研判
     sentiment_controversy: str = ""      # 舆论风向与争议
@@ -624,6 +627,18 @@ class AIAnalyzer:
 
         # 解析成功，提取字段
         try:
+            result.market_sentiment = str(data.get("market_sentiment", "")).strip()
+
+            raw_topics = data.get("highlight_topics", [])
+            if isinstance(raw_topics, list):
+                result.highlight_topics = [
+                    str(t).strip().lstrip("#") for t in raw_topics if str(t).strip()
+                ]
+            elif isinstance(raw_topics, str) and raw_topics.strip():
+                result.highlight_topics = [
+                    t.strip().lstrip("#") for t in re.split(r"[,，、\s]+", raw_topics) if t.strip()
+                ]
+
             result.core_trends = data.get("core_trends", "")
             result.market_regions = data.get("market_regions", "")
             result.sentiment_controversy = data.get("sentiment_controversy", "")

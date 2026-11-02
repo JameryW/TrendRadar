@@ -86,6 +86,65 @@ def _format_ai_subtext(result: AIAnalysisResult) -> str:
     return f"📊 深度研判 {analyzed_count} 条焦点热点{breakdown}"
 
 
+def _format_topics_and_sentiment_line(
+    result: AIAnalysisResult, style: str = "markdown"
+) -> str:
+    """格式化态势基调与核心标签行"""
+    if not result:
+        return ""
+    sentiment = str(getattr(result, "market_sentiment", "") or "").strip()
+    topics = getattr(result, "highlight_topics", []) or []
+    if isinstance(topics, str):
+        topics = [
+            t.strip().lstrip("#")
+            for t in re.split(r"[,，、\s]+", topics)
+            if t.strip()
+        ]
+    elif isinstance(topics, list):
+        topics = [str(t).strip().lstrip("#") for t in topics if str(t).strip()]
+
+    if not sentiment and not topics:
+        return ""
+
+    if style == "discord":
+        parts = []
+        if sentiment:
+            parts.append(f"🌡️ **态势基调**: {sentiment}")
+        if topics:
+            tag_badges = " ".join(f"`#{t}`" for t in topics[:5])
+            parts.append(f"🏷️ **焦点标签**: {tag_badges}")
+        return f"> {'  '.join(parts)}"
+
+    if style in ("feishu", "markdown", "wework", "ntfy", "slack", "dingtalk"):
+        parts = []
+        if sentiment:
+            parts.append(f"🌡️ **态势基调**: {sentiment}")
+        if topics:
+            tag_badges = " ".join(f"#{t}" for t in topics[:5])
+            parts.append(f"🏷️ **焦点标签**: {tag_badges}")
+        return f"> {' ｜ '.join(parts)}"
+
+    if style == "telegram":
+        parts = []
+        if sentiment:
+            parts.append(f"🌡️ <b>态势基调:</b> {_escape_html(sentiment)}")
+        if topics:
+            tag_badges = " ".join(f"#{_escape_html(t)}" for t in topics[:5])
+            parts.append(f"🏷️ <b>焦点:</b> {tag_badges}")
+        return f"<code>{' ｜ '.join(parts)}</code>"
+
+    if style == "plain":
+        parts = []
+        if sentiment:
+            parts.append(f"🌡️ 态势基调: {sentiment}")
+        if topics:
+            tag_badges = " ".join(f"#{t}" for t in topics[:5])
+            parts.append(f"🏷️ 焦点标签: {tag_badges}")
+        return f"[{' ｜ '.join(parts)}]"
+
+    return ""
+
+
 def _format_standalone_summaries(
     summaries: dict, bracket_left: str = "[", bracket_right: str = "]"
 ) -> str:
@@ -131,6 +190,12 @@ def _render_ai_analysis_markdown_like(
             lines.append(f"<font color='grey'>{subtext}</font>")
         else:
             lines.append(f"> {subtext}")
+
+    tags_line = _format_topics_and_sentiment_line(
+        result, style="feishu" if is_feishu else "markdown"
+    )
+    if tags_line:
+        lines.append(tags_line)
     lines.append("")
 
     if result.core_trends:
@@ -187,6 +252,10 @@ def render_ai_analysis_discord(result: AIAnalysisResult) -> str:
     subtext = _format_ai_subtext(result)
     if subtext:
         lines.append(f"-# {subtext}")
+
+    tags_line = _format_topics_and_sentiment_line(result, style="discord")
+    if tags_line:
+        lines.append(tags_line)
     lines.append("")
 
     def _add_section(emoji: str, title: str, content: str):
@@ -233,6 +302,9 @@ def render_ai_analysis_dingtalk(result: AIAnalysisResult) -> str:
     subtext = _format_ai_subtext(result)
     if subtext:
         lines.append(f"> {subtext}")
+    tags_line = _format_topics_and_sentiment_line(result, style="dingtalk")
+    if tags_line:
+        lines.append(tags_line)
     lines.append("")
 
     if result.core_trends:
@@ -287,6 +359,9 @@ def render_ai_analysis_plain(result: AIAnalysisResult) -> str:
     subtext = _format_ai_subtext(result)
     if subtext:
         lines.append(subtext)
+    tags_line = _format_topics_and_sentiment_line(result, style="plain")
+    if tags_line:
+        lines.append(tags_line)
     lines.append("")
 
     if result.core_trends:
@@ -334,6 +409,9 @@ def render_ai_analysis_telegram(result: AIAnalysisResult) -> str:
     subtext = _format_ai_subtext(result)
     if subtext:
         lines.append(f"<code>{_escape_html(subtext)}</code>")
+    tags_line = _format_topics_and_sentiment_line(result, style="telegram")
+    if tags_line:
+        lines.append(tags_line)
     lines.append("")
 
     if result.core_trends:
@@ -404,12 +482,37 @@ def render_ai_analysis_html_rich(result: AIAnalysisResult) -> str:
         else ""
     )
 
+    sentiment = str(getattr(result, "market_sentiment", "") or "").strip()
+    topics = getattr(result, "highlight_topics", []) or []
+    if isinstance(topics, str):
+        topics = [
+            t.strip().lstrip("#")
+            for t in re.split(r"[,，、\s]+", topics)
+            if t.strip()
+        ]
+    elif isinstance(topics, list):
+        topics = [str(t).strip().lstrip("#") for t in topics if str(t).strip()]
+
+    tags_html = ""
+    if sentiment or topics:
+        tags_badges = []
+        if sentiment:
+            tags_badges.append(
+                f'<span class="ai-sentiment-badge">🌡️ {_escape_html(sentiment)}</span>'
+            )
+        for t in topics[:5]:
+            tags_badges.append(
+                f'<span class="ai-topic-tag">#{_escape_html(t)}</span>'
+            )
+        tags_html = f'<div class="ai-tags-row">{" ".join(tags_badges)}</div>'
+
     ai_html = f"""
                 <div class="ai-section">
                     <div class="ai-section-header">
                         <div>
                             <div class="ai-section-title">✨ AI 深度研判</div>
                             {subtext_html}
+                            {tags_html}
                         </div>
                         <span class="ai-section-badge">AI</span>
                     </div>

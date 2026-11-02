@@ -15,14 +15,17 @@ from unittest.mock import MagicMock
 from trendradar.ai.analyzer import AIAnalysisResult, AIAnalyzer
 from trendradar.ai.formatter import (
     _format_ai_subtext,
+    _format_topics_and_sentiment_line,
     get_ai_analysis_renderer,
     render_ai_analysis_dingtalk,
+    render_ai_analysis_discord,
     render_ai_analysis_feishu,
     render_ai_analysis_html_rich,
     render_ai_analysis_markdown,
     render_ai_analysis_plain,
     render_ai_analysis_telegram,
 )
+from trendradar.notification.senders import _extract_discord_summary_fields
 from mcp_server.tools.notification import CHANNEL_FORMAT_GUIDES
 
 
@@ -252,3 +255,135 @@ def test_channel_format_guides_ai_support():
     assert any("AI 深度研判" in item for item in CHANNEL_FORMAT_GUIDES["feishu"]["supported"])
     assert any("AI 深度研判" in item for item in CHANNEL_FORMAT_GUIDES["dingtalk"]["supported"])
     assert any("AI 深度研判" in item for item in CHANNEL_FORMAT_GUIDES["telegram"]["supported"])
+    assert any("态势基调" in item or "舆情基调" in item for item in CHANNEL_FORMAT_GUIDES["discord"]["supported"])
+
+
+def test_ai_analysis_result_sentiment_and_topics():
+    """验证 AIAnalysisResult 支持 market_sentiment 与 highlight_topics 属性"""
+    res = AIAnalysisResult(
+        market_sentiment="积极偏多",
+        highlight_topics=["AI算力", "半导体", "美联储利率"],
+        core_trends="算力板块走强",
+        success=True,
+    )
+    assert res.market_sentiment == "积极偏多"
+    assert res.highlight_topics == ["AI算力", "半导体", "美联储利率"]
+
+
+def test_ai_analyzer_parse_response_with_sentiment_and_topics():
+    """验证 AIAnalyzer._parse_response 正确解析 market_sentiment 与列表/字符串形式 highlight_topics"""
+    analyzer = AIAnalyzer(
+        ai_config={"API_KEY": "test-key", "MODEL": "test-model"},
+        analysis_config={"MAX_NEWS_FOR_ANALYSIS": 50},
+        get_time_func=MagicMock(),
+    )
+
+    # 1. 数组形式 highlight_topics
+    data_list = {
+        "market_sentiment": "中性分歧",
+        "highlight_topics": ["#AI算力", "人形机器人", "国产芯片"],
+        "core_trends": "科技领域多点开花",
+    }
+    res_list = analyzer._parse_response(json.dumps(data_list))
+    assert res_list.market_sentiment == "中性分歧"
+    assert res_list.highlight_topics == ["AI算力", "人形机器人", "国产芯片"]
+
+    # 2. 字符串逗号/空格分隔形式 highlight_topics
+    data_str = {
+        "market_sentiment": "避险防守",
+        "highlight_topics": "#黄金, 避险资产、 美元指数",
+        "core_trends": "避险情绪升温",
+    }
+    res_str = analyzer._parse_response(json.dumps(data_str))
+    assert res_str.market_sentiment == "避险防守"
+    assert res_str.highlight_topics == ["黄金", "避险资产", "美元指数"]
+
+
+def test_format_topics_and_sentiment_line():
+    """验证 _format_topics_and_sentiment_line 多渠道样式输出"""
+    res = AIAnalysisResult(
+        market_sentiment="积极偏多",
+        highlight_topics=["AI算力", "国产芯片"],
+    )
+    # Discord: 行内代码徽章
+    discord_line = _format_topics_and_sentiment_line(res, style="discord")
+    assert "> 🌡️ **态势基调**: 积极偏多  🏷️ **焦点标签**: `#AI算力` `#国产芯片`" == discord_line
+
+    # Markdown / Feishu / Dingtalk: 引用块与分隔符
+    markdown_line = _format_topics_and_sentiment_line(res, style="markdown")
+    assert "> 🌡️ **态势基调**: 积极偏多 ｜ 🏷️ **焦点标签**: #AI算力 #国产芯片" == markdown_line
+
+    # Telegram: HTML 标签
+    tg_line = _format_topics_and_sentiment_line(res, style="telegram")
+    assert "<code>🌡️ <b>态势基调:</b> 积极偏多 ｜ 🏷️ <b>焦点:</b> #AI算力 #国产芯片</code>" == tg_line
+
+    # Plain: 方括号纯文本
+    plain_line = _format_topics_and_sentiment_line(res, style="plain")
+    assert "[🌡️ 态势基调: 积极偏多 ｜ 🏷️ 焦点标签: #AI算力 #国产芯片]" == plain_line
+
+    # 空数据安全返回空串
+    assert _format_topics_and_sentiment_line(None) == ""
+    assert _format_topics_and_sentiment_line(AIAnalysisResult()) == ""
+
+
+def test_render_ai_analysis_with_sentiment_and_topics_across_channels():
+    """验证各渠道渲染器完整包含态势基调与焦点标签"""
+    res = AIAnalysisResult(
+        market_sentiment="谨慎观望",
+        highlight_topics=["低空经济", "量子计算"],
+        core_trends="前沿赛道博弈",
+        analyzed_news=20,
+        hotlist_analyzed=20,
+        success=True,
+    )
+
+    # Discord
+    discord_out = render_ai_analysis_discord(res)
+    assert "## ✨ AI 深度研判" in discord_out
+    assert "-# 📊 深度研判 20 条焦点热点（热榜 20）" in discord_out
+    assert "> 🌡️ **态势基调**: 谨慎观望  🏷️ **焦点标签**: `#低空经济` `#量子计算`" in discord_out
+
+    # Feishu
+    feishu_out = render_ai_analysis_feishu(res)
+    assert "**✨ AI 深度研判**" in feishu_out
+    assert "> 🌡️ **态势基调**: 谨慎观望 ｜ 🏷️ **焦点标签**: #低空经济 #量子计算" in feishu_out
+
+    # Dingtalk
+    dingtalk_out = render_ai_analysis_dingtalk(res)
+    assert "### ✨ AI 深度研判" in dingtalk_out
+    assert "> 🌡️ **态势基调**: 谨慎观望 ｜ 🏷️ **焦点标签**: #低空经济 #量子计算" in dingtalk_out
+
+    # Telegram
+    tg_out = render_ai_analysis_telegram(res)
+    assert "<b>✨ AI 深度研判</b>" in tg_out
+    assert "<code>🌡️ <b>态势基调:</b> 谨慎观望 ｜ 🏷️ <b>焦点:</b> #低空经济 #量子计算</code>" in tg_out
+
+    # HTML Rich
+    html_out = render_ai_analysis_html_rich(res)
+    assert '<span class="ai-sentiment-badge">🌡️ 谨慎观望</span>' in html_out
+    assert '<span class="ai-topic-tag">#低空经济</span>' in html_out
+    assert '<span class="ai-topic-tag">#量子计算</span>' in html_out
+
+
+def test_discord_extract_summary_fields_with_sentiment_and_topics():
+    """验证 Discord Embed 概览解析器能够提取舆情基调与焦点标签为独立字段"""
+    raw_content = (
+        "**总新闻：** 120条\n"
+        "**舆情基调：** 积极偏多\n"
+        "**焦点标签：** #AI算力 #人形机器人\n"
+        "**热榜：** 80条\n"
+        "---\n"
+        "正文内容从这里开始..."
+    )
+    fields, body = _extract_discord_summary_fields(raw_content)
+    names = [f["name"] for f in fields]
+    assert "📋 总新闻" in names
+    assert "🌡️ 舆情基调" in names
+    assert "🏷️ 焦点标签" in names
+    assert "🔥 热榜" in names
+
+    # 焦点标签独占整行
+    tag_field = next(f for f in fields if f["name"] == "🏷️ 焦点标签")
+    assert tag_field["inline"] is False
+    assert tag_field["value"] == "#AI算力 #人形机器人"
+    assert "正文内容从这里开始" in body
